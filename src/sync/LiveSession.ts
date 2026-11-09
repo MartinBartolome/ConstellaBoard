@@ -112,7 +112,7 @@ export class LiveSession {
     opts: LiveSessionOptions = {},
   ) {
     this.me = join.participant
-    this.opts = { flushDelayMs: 600, heartbeatMs: 4 * 60_000, cursorIntervalMs: 60, resyncMs: 2 * 60_000, ...opts }
+    this.opts = { flushDelayMs: 600, heartbeatMs: 4 * 60_000, cursorIntervalMs: 100, resyncMs: 2 * 60_000, ...opts }
     this.applyPermissions(this.me.permissions)
   }
 

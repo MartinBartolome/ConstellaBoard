@@ -15,7 +15,7 @@ import { signOutLocal } from '../sync/supabaseClient'
 import { ParticipantsButton } from '../session/ParticipantsPanel'
 import { Loading } from '../App'
 
-type Credentials = { role: 'coach' | 'participant'; token: string }
+type Credentials = { role: 'coach' | 'participant'; token: string; joined?: boolean }
 
 type Phase =
   | { kind: 'loading' }
@@ -70,6 +70,12 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
       setPhase({ kind: 'joining' })
       try {
         const res: JoinResult = await joinSession(sessionId, creds.token, extra)
+        // Beim Neuladen des Tabs direkt wieder beitreten, ohne Willkommensseite
+        try {
+          sessionStorage.setItem(STORAGE_PREFIX + sessionId, JSON.stringify({ ...creds, joined: true }))
+        } catch {
+          /* ignorieren */
+        }
         const store = new BoardStore(undefined, res.participant.clientId)
         const live = new LiveSession(sessionId, res, store, supabaseBackend(sessionId))
         await live.start()
@@ -103,7 +109,7 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
       setPhase({ kind: 'error', message: 'Der Link ist unvollständig. Bitte öffnen Sie den vollständigen Einladungslink.' })
       return
     }
-    if (creds.role === 'coach') void join(creds)
+    if (creds.role === 'coach' || creds.joined) void join(creds)
     else setPhase({ kind: 'welcome', creds, needsCode: false })
   }, [sessionId, join])
 

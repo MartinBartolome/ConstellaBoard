@@ -77,7 +77,26 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
           /* ignorieren */
         }
         const store = new BoardStore(undefined, res.participant.clientId)
-        const live = new LiveSession(sessionId, res, store, supabaseBackend(sessionId))
+        const key = `constellaboard-outbox:${sessionId}:${res.participant.clientId}`
+        const live = new LiveSession(sessionId, res, store, supabaseBackend(sessionId), {
+          outboxStorage: {
+            load: () => {
+              try {
+                return JSON.parse(sessionStorage.getItem(key) ?? '[]')
+              } catch {
+                return []
+              }
+            },
+            save: (ops) => {
+              try {
+                if (ops.length) sessionStorage.setItem(key, JSON.stringify(ops))
+                else sessionStorage.removeItem(key)
+              } catch {
+                /* Speicher voll oder gesperrt: Änderungen bleiben im Speicher und werden weiter gesendet */
+              }
+            },
+          },
+        })
         await live.start()
         setPhase({ kind: 'ready', live, store, creds })
       } catch (e) {
@@ -126,7 +145,10 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     if (phase.kind !== 'ready') return
     const live = phase.live
-    const onHide = () => void live.flushNow()
+    const onHide = () => {
+      live.persistOutbox()
+      void live.flushNow()
+    }
     window.addEventListener('pagehide', onHide)
     return () => {
       window.removeEventListener('pagehide', onHide)

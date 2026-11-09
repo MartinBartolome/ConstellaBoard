@@ -57,7 +57,14 @@ function statusOf(e: unknown): number {
   return typeof e === 'object' && e && 'status' in e ? Number((e as { status: unknown }).status) : 0
 }
 
+/** Ablage für noch nicht gespeicherte Operationen (überlebt ein Neuladen des Tabs). */
+export interface OutboxStorage {
+  load(): BoardOp[]
+  save(ops: BoardOp[]): void
+}
+
 export interface LiveSessionOptions {
+  outboxStorage?: OutboxStorage
   flushDelayMs?: number
   heartbeatMs?: number
   cursorIntervalMs?: number
@@ -112,7 +119,7 @@ export class LiveSession {
     opts: LiveSessionOptions = {},
   ) {
     this.me = join.participant
-    this.opts = { flushDelayMs: 600, heartbeatMs: 4 * 60_000, cursorIntervalMs: 100, resyncMs: 2 * 60_000, ...opts }
+    this.opts = { outboxStorage: { load: () => [], save: () => undefined }, flushDelayMs: 600, heartbeatMs: 4 * 60_000, cursorIntervalMs: 100, resyncMs: 2 * 60_000, ...opts }
     this.applyPermissions(this.me.permissions)
   }
 
@@ -135,8 +142,16 @@ export class LiveSession {
   async start(): Promise<void> {
     const initial = await this.backend.getBoard()
     this.store.mergeState(initial)
+    // Änderungen, die vor einem Neuladen nicht mehr gespeichert werden konnten, nachholen
+    const saved = validateOps(this.opts.outboxStorage.load())
+    if (saved) {
+      this.store.applyRemote(saved)
+      this.outbox.push(...saved)
+      this.pending = this.outbox.length
+    }
     this.store.clearHistory()
     this.unsubscribeStore = this.store.onLocalOps((ops) => this.onLocalOps(ops))
+    if (this.outbox.length) void this.flush()
     await this.openLink()
     this.heartbeat = setInterval(() => void this.checkMembership(), this.opts.heartbeatMs)
     this.resyncTimer = setInterval(() => {
@@ -182,6 +197,11 @@ export class LiveSession {
   }
 
   /** Vor dem Verlassen: ausstehende Änderungen noch senden. */
+  /** Ungesicherte Operationen lokal ablegen (z. B. beim Verlassen der Seite). */
+  persistOutbox(): void {
+    this.opts.outboxStorage.save(compactOps(this.outbox))
+  }
+
   async flushNow(): Promise<void> {
     if (this.flushTimer) clearTimeout(this.flushTimer)
     this.flushTimer = null
@@ -219,6 +239,7 @@ export class LiveSession {
       this.outbox.splice(0, batch.length)
       this.retryDelay = 1000
       this.lastError = null
+      this.persistOutbox()
     } catch (e) {
       const s = statusOf(e)
       if (s === 410) await this.markEnded()
@@ -324,6 +345,7 @@ export class LiveSession {
     if (this.status === 'ended') return
     this.status = 'ended'
     this.outbox = []
+    this.persistOutbox()
     this.pending = 0
     // Lokale Kopie ebenfalls verwerfen
     this.store.reset()
@@ -335,6 +357,7 @@ export class LiveSession {
     if (this.status === 'removed') return
     this.status = 'removed'
     this.outbox = []
+    this.persistOutbox()
     this.store.reset()
     this.emit()
     void this.dispose()

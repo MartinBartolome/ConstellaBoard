@@ -155,6 +155,31 @@ describe('Live-Sitzung (mehrere Teilnehmende)', () => {
     expect(k.live.status).toBe('removed')
   })
 
+  it('holt nach dem Neuladen ungesicherte Änderungen nach', async () => {
+    const server = new FakeServer()
+    const p = person('k', 'participant')
+    const join = server.join(p)
+    let stored: unknown[] = []
+    const storage = { load: () => stored as never, save: (ops: unknown[]) => void (stored = ops) }
+    const store1 = new BoardStore(undefined, p.clientId)
+    const live1 = new LiveSession('sess', join, store1, server.backendFor('k'), { outboxStorage: storage, flushDelayMs: 10_000, heartbeatMs: 1e9, resyncMs: 1e9 })
+    await live1.start()
+    const f = newFigure(store1.getState(), 'mann', 0, 0)
+    store1.execute([{ op: 'create', entity: f }])
+    // Tab wird neu geladen, bevor gespeichert wurde
+    live1.persistOutbox()
+    await live1.dispose()
+    expect(server.state.entities[f.id]).toBeUndefined()
+
+    const store2 = new BoardStore(undefined, p.clientId)
+    const live2 = new LiveSession('sess', join, store2, server.backendFor('k'), { outboxStorage: storage, flushDelayMs: 5, heartbeatMs: 1e9, resyncMs: 1e9 })
+    await live2.start()
+    await settle()
+    expect(server.state.entities[f.id]).toBeDefined()
+    expect(figs(store2)).toHaveLength(1)
+    expect(stored).toEqual([])
+  })
+
   it('fasst Zwischenstände beim Ziehen zusammen', () => {
     const ops = compactOps([
       { op: 'patch', id: 'a', fields: { x: 1 }, rev: { t: 1, c: 'c' } },

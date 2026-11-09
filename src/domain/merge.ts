@@ -1,5 +1,5 @@
-import { compareRev } from './rev'
-import type { BoardEntity, BoardOp, BoardState, Rev, StoredEntity } from './types'
+import { compareRev } from './rev.ts'
+import type { BoardEntity, BoardOp, BoardState, Rev, StoredEntity } from './types.ts'
 
 /**
  * Wendet eine Operation auf den Brettzustand an (rein funktional).

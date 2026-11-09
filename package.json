@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "ConstellaBoard – digitales Systembrett für Aufstellungen und systemisches Coaching",
+  "description": "ConstellaBoard \u2013 digitales Systembrett f\u00fcr Aufstellungen und systemisches Coaching",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "lint": "tsc -b --noEmit"
+    "lint": "tsc -b --noEmit",
+    "sync:shared": "node scripts/sync-shared.mjs",
+    "check:functions": "deno check supabase/functions/*/index.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

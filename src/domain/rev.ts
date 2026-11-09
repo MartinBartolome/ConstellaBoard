@@ -1,4 +1,4 @@
-import type { Rev } from './types'
+import type { Rev } from './types.ts'
 
 /** Vergleicht zwei Revisionen. >0 wenn a neuer ist als b. */
 export function compareRev(a: Rev, b: Rev): number {

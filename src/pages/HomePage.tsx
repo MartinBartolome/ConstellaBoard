@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Logo } from '../components/Logo'
 import { Icon } from '../components/Icon'
-import { Link, navigate } from '../lib/router'
+import { Link, navigate, toInternalPath } from '../lib/router'
 import { FigureShape } from '../board/FigureShape'
 import { getTemplate } from '../domain/library'
 import { isBackendConfigured } from '../sync/config'
@@ -159,7 +159,7 @@ export function parseInvite(input: string): string | null {
   if (!s) return null
   try {
     const u = new URL(s, location.origin)
-    const m = /^\/s\/([A-Za-z0-9_-]{8,64})\/?$/.exec(u.pathname)
+    const m = /^\/s\/([A-Za-z0-9_-]{8,64})\/?$/.exec(toInternalPath(u.pathname))
     if (!m) return null
     if (!/[#&](t|c)=[A-Za-z0-9_-]{20,}/.test(u.hash)) return null
     return `/s/${m[1]}${u.hash}`

@@ -1,0 +1,23 @@
+# Supabase-Projektkonfiguration (für die Supabase CLI)
+project_id = "constellaboard"
+
+[auth]
+# Klienten brauchen kein Konto: anonyme Anmeldung für geschützte Realtime-Kanäle
+enable_anonymous_sign_ins = true
+
+[functions.create-session]
+verify_jwt = true
+[functions.join-session]
+verify_jwt = true
+[functions.validate-token]
+verify_jwt = true
+[functions.get-board-state]
+verify_jwt = true
+[functions.update-board-state]
+verify_jwt = true
+[functions.close-session]
+verify_jwt = true
+[functions.manage-participant]
+verify_jwt = true
+[functions.cleanup-expired-sessions]
+verify_jwt = false

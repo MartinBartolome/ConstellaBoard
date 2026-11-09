@@ -2,8 +2,7 @@ name: Deploy Supabase Edge Functions
 
 on:
   push:
-    # systembrett-v1: vorübergehend, um das Backend vor dem Merge zu testen
-    branches: [main, systembrett-v1]
+    branches: [main]
     paths: ['supabase/functions/**', '.github/workflows/deploy-supabase.yml']
   workflow_dispatch:
 

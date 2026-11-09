@@ -4,9 +4,6 @@ name: Live-Tests (echtes Backend)
 # echte Supabase-Projekt. Erzeugt kurzlebige Testsitzungen und beendet sie.
 on:
   workflow_dispatch:
-  push:
-    # vorübergehend: Live-Tests vor dem Merge auf dem Feature-Branch
-    branches: [systembrett-v1]
   workflow_run:
     workflows: ['Deploy Supabase Edge Functions']
     types: [completed]

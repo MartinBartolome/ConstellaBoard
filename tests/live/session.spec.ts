@@ -36,6 +36,18 @@ async function addFigure(page: Page, type: string) {
   await page.getByTestId(`lib-${type}`).click()
 }
 
+/** Zieht eine Figur an eine feste Stelle (relativ zum Brett), damit Figuren sich nicht überlappen. */
+async function dropFigure(page: Page, type: string, x: number, y: number) {
+  const it = (await page.getByTestId(`lib-${type}`).boundingBox())!
+  const b = (await page.getByTestId('board').boundingBox())!
+  await page.mouse.move(it.x + it.width / 2, it.y + it.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(it.x + it.width / 2 + 60, it.y + it.height / 2, { steps: 4 })
+  await page.mouse.move(b.x + x, b.y + y, { steps: 8 })
+  await page.mouse.up()
+  return { x: b.x + x, y: b.y + y }
+}
+
 async function endSession(coach: Page) {
   await coach.getByTestId('end-session').click()
   await coach.getByTestId('confirm-end').click()
@@ -53,21 +65,21 @@ test('Sitzung erstellen, beitreten und in Echtzeit zusammenarbeiten', async ({ b
   await expect(coach.getByTestId('connection-status')).toContainText('1 weitere Person', { timeout: 15_000 })
 
   // Coach fügt hinzu → Klient sieht es
-  await addFigure(coach, 'frau')
+  await dropFigure(coach, 'frau', 450, 300)
   await expect(client.getByTestId('figure')).toHaveCount(1, { timeout: 10_000 })
   // Klient fügt hinzu → Coach sieht es
-  await addFigure(client, 'mann')
+  const p1 = await dropFigure(client, 'mann', 750, 300)
   await expect(coach.getByTestId('figure')).toHaveCount(2, { timeout: 10_000 })
 
-  // Verbindung erstellen
+  // Verbindung im Klienten-Browser erstellen → Coach sieht sie
   const b = (await client.getByTestId('board').boundingBox())!
-  const f0 = (await client.getByTestId('figure').nth(0).boundingBox())!
-  const f1 = (await client.getByTestId('figure').nth(1).boundingBox())!
+  await client.keyboard.press('Escape')
   await client.getByTestId('tool-connect').click()
-  await client.mouse.click(f0.x + f0.width / 2, f0.y + f0.height / 2)
-  await client.mouse.click(f1.x + f1.width / 2, f1.y + f1.height / 2)
+  await client.mouse.click(b.x + 450, b.y + 300)
+  await client.mouse.click(p1.x, p1.y)
+  await expect(client.getByTestId('connection')).toHaveCount(1, { timeout: 5_000 })
   await expect(coach.getByTestId('connection')).toHaveCount(1, { timeout: 10_000 })
-  void b
+  await client.keyboard.press('Escape')
 
   // Neu laden: Zustand kommt vom Server zurück (dauerhaft bis Sitzungsende)
   await client.reload()

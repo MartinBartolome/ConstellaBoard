@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/*
+ * Designsystem ConstellaBoard
+ * Ruhige, warme Naturfarben, helle Flächen, dezente Schatten.
+ * Bewusst ohne externe Schriftdienste (Datenschutz): Systemschriften mit
+ * hochwertigen Fallbacks.
+ */
+@theme {
+  --font-sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+
+  --color-paper: #f7f3ec;
+  --color-paper-2: #efe8dc;
+  --color-surface: #fffdf9;
+  --color-line: #e3dace;
+  --color-line-strong: #cfc3b3;
+  --color-ink: #2f2b26;
+  --color-ink-2: #5c554c;
+  --color-ink-3: #8a8178;
+  --color-moss: #5b7a5a;
+  --color-moss-dark: #46613f;
+  --color-moss-light: #e3ebdd;
+  --color-clay: #c0704f;
+  --color-clay-light: #f6e3d9;
+  --color-sand: #d9b68a;
+  --color-sky: #6f93a8;
+
+  --radius-xl: 0.9rem;
+  --radius-2xl: 1.25rem;
+
+  --shadow-soft: 0 1px 2px rgb(60 45 30 / 0.06), 0 4px 16px rgb(60 45 30 / 0.06);
+  --shadow-lift: 0 2px 4px rgb(60 45 30 / 0.08), 0 12px 32px rgb(60 45 30 / 0.12);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-moss);
+    outline-offset: 2px;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition select-none min-h-11;
+}
+
+@utility btn-primary {
+  @apply btn bg-moss text-white shadow-soft hover:bg-moss-dark active:translate-y-px;
+}
+
+@utility btn-secondary {
+  @apply btn bg-surface text-ink border border-line shadow-soft hover:border-line-strong hover:bg-white;
+}
+
+@utility btn-ghost {
+  @apply btn text-ink-2 hover:bg-paper-2;
+}
+
+@utility btn-danger {
+  @apply btn bg-clay-light text-clay hover:bg-clay hover:text-white;
+}
+
+@utility icon-btn {
+  @apply inline-flex h-11 w-11 items-center justify-center rounded-xl text-ink-2 transition hover:bg-paper-2 hover:text-ink disabled:opacity-35 disabled:hover:bg-transparent;
+}
+
+@utility panel {
+  @apply rounded-2xl border border-line bg-surface/95 shadow-soft backdrop-blur;
+}
+
+@utility field-label {
+  @apply mb-1.5 block text-xs font-medium tracking-wide text-ink-3 uppercase;
+}
+
+@utility input {
+  @apply w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:border-moss focus:outline-none min-h-11;
+}
+
+@layer components {
+  .icon-btn[aria-pressed="true"] {
+    @apply bg-moss-light text-moss-dark;
+  }
+}
+
+.board-surface {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board-grid {
+  background-color: #faf7f1;
+}

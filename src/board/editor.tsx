@@ -73,6 +73,8 @@ export interface EditorApi {
   labelFocusToken: number
   /** Status-Mitteilung (Toast) */
   notify: (msg: string) => void
+  /** Brettpunkt in der Bildmitte, falls die aktive Ansicht ihn selbst bestimmt (3D) */
+  viewCenter?: () => { x: number; y: number }
 }
 
 export const EditorContext = createContext<EditorApi | null>(null)

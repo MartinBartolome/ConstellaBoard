@@ -11,6 +11,7 @@ export function HomePage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [joinOpen, setJoinOpen] = useState(false)
+  const [accessCode, setAccessCode] = useState('')
   const backend = isBackendConfigured()
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export function HomePage() {
     }
     setBusy(true)
     try {
-      const s = await createSession()
+      const s = await createSession(accessCode.trim() ? { accessCode: accessCode.trim() } : {})
       navigate(`/s/${s.sessionId}#c=${s.coachToken}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Die Sitzung konnte nicht erstellt werden.')
@@ -68,6 +69,22 @@ export function HomePage() {
                 <Icon name="arrowRight" size={18} /> Sitzung beitreten
               </button>
             </div>
+            {backend && (
+              <details className="mt-3 text-sm text-ink-2">
+                <summary className="cursor-pointer text-ink-3">Optional: zusätzlichen Zugangscode festlegen</summary>
+                <input
+                  className="input mt-2 max-w-xs"
+                  placeholder="4–32 Zeichen"
+                  minLength={4}
+                  maxLength={32}
+                  value={accessCode}
+                  onChange={(e) => setAccessCode(e.target.value)}
+                  aria-label="Zugangscode"
+                  autoComplete="off"
+                />
+                <p className="mt-1 text-xs text-ink-3">Teilen Sie den Code getrennt vom Link, z. B. mündlich.</p>
+              </details>
+            )}
             {!backend && (
               <p className="mt-3 text-sm text-ink-3">
                 Hinweis: Diese Installation ist noch nicht mit einem Server verbunden. «Neue Sitzung» öffnet ein lokales Übungsbrett.

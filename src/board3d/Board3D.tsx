@@ -57,6 +57,21 @@ function detectLowPower(): boolean {
   return coarse || Math.min(window.screen.width, window.screen.height) < 700
 }
 
+/** WebGL ohne Grafikkarte (z. B. SwiftShader, llvmpipe): sparsam rendern. */
+export function softwareRendering(): boolean {
+  if (typeof document === 'undefined') return false
+  try {
+    const gl = document.createElement('canvas').getContext('webgl')
+    if (!gl) return true
+    const info = gl.getExtension('WEBGL_debug_renderer_info')
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))
+    gl.getExtension('WEBGL_lose_context')?.loseContext()
+    return /swiftshader|llvmpipe|software|softpipe/i.test(name)
+  } catch {
+    return false
+  }
+}
+
 /**
  * Umschaltbare 3D-Ansicht des Systembretts. Nutzt dieselben Daten wie die
  * 2D-Fläche: Ziehen und Drehen schreibt Brett-Koordinaten in den Store, die
@@ -73,7 +88,9 @@ export default function Board3D({ handleRef }: { handleRef: RefObject<Board3DHan
   const figureCount = visible.filter((e) => e.kind === 'figure').length
   const settings = useViewSettings()
   const env = getEnvironment(settings.environment)
-  const lowPower = useMemo(detectLowPower, [])
+  // Ohne Grafikkarte rechnet die CPU jedes Pixel: kleinere Auflösung und Schatten
+  const software = useMemo(softwareRendering, [])
+  const lowPower = useMemo(() => software || detectLowPower(), [software])
   const [panelOpen, setPanelOpen] = useState(false)
 
   return (
@@ -87,14 +104,14 @@ export default function Board3D({ handleRef }: { handleRef: RefObject<Board3DHan
     >
       <Canvas
         shadows
-        dpr={lowPower ? [1, 1.5] : [1, 2]}
+        dpr={software ? 0.6 : lowPower ? [1, 1.5] : [1, 2]}
         frameloop="demand"
         camera={{ fov: 42, near: 0.1, far: 2500, position: [0, 18, 16] }}
         gl={{ antialias: true, preserveDrawingBuffer: false, toneMapping: THREE.AgXToneMapping, toneMappingExposure: 0.95 }}
         onContextMenu={(e) => e.preventDefault()}
         aria-label="Systembrett in 3D"
       >
-        <Scene ed={ed} state={state} visible={visible} handleRef={handleRef} lowPower={lowPower} />
+        <Scene ed={ed} state={state} visible={visible} handleRef={handleRef} lowPower={lowPower} software={software} />
       </Canvas>
       <ViewButtons handleRef={handleRef} onScenery={() => setPanelOpen((v) => !v)} sceneryOpen={panelOpen} />
       {panelOpen && <SceneryPanel onClose={() => setPanelOpen(false)} />}
@@ -162,12 +179,14 @@ function Scene({
   visible,
   handleRef,
   lowPower,
+  software,
 }: {
   ed: EditorApi
   state: BoardState
   visible: BoardEntity[]
   handleRef: RefObject<Board3DHandle | null>
   lowPower: boolean
+  software: boolean
 }) {
   const { camera, gl, invalidate } = useThree()
   // drei <Html> verliert seinen Inhalt, wenn es vor dem Verbinden der Ereignisse
@@ -453,7 +472,7 @@ function Scene({
         touches={{ ONE: hand ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
 
-      <Environment3D env={env} rect={rect} hiRes={!lowPower} shadowSize={lowPower ? 1024 : 2048} />
+      <Environment3D env={env} rect={rect} hiRes={!lowPower} shadowSize={software ? 512 : lowPower ? 1024 : 2048} />
       <Systembrett rect={rect} style={boardStyle} />
 
       {/* Unsichtbare Ebene auf Brett-Höhe: Klicks, Abwählen, Cursor – auch neben dem Brett */}

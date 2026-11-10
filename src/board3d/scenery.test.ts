@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
-import { BOARD_STYLES, ENVIRONMENTS, getBoardStyle, getEnvironment, panoramaDirection, panoramaYaw } from './scenery'
+import { existsSync } from 'node:fs'
+import { BOARD_STYLES, ENVIRONMENTS, METER, TABLES, getBoardStyle, getEnvironment, panoramaDirection, panoramaYaw } from './scenery'
 import { personCross, personProfile, revolve, softHex, superellipse } from './geometry3d'
 import { boardRectOf } from './Board3D'
+import { chairPlaces, floorY } from './Scenery3D'
 import { newFigure } from '../domain/commands'
 import { emptyBoard } from '../domain/types'
 
@@ -72,5 +74,30 @@ describe('Gedrechselte Figuren', () => {
       expect(softHex(t)).toBeGreaterThan(0.85)
       expect(softHex(t)).toBeLessThan(1.01)
     }
+  })
+})
+
+describe('Tisch und Stühle', () => {
+  it('jede Umgebung hat einen Tisch, dessen Modell vorhanden ist', () => {
+    for (const env of ENVIRONMENTS) {
+      const set = env.furniture
+      expect(existsSync(`public/3d/moebel/${set.table}.glb`)).toBe(true)
+      if (set.chair) expect(existsSync(`public/3d/moebel/${set.chair}.glb`)).toBe(true)
+      // Fussboden unter der Tischplatte, Panorama-Kamera darüber
+      expect(floorY(set)).toBeLessThan(-20)
+      if (env.backdrop) expect(env.radius).toBeGreaterThan(env.groundHeight)
+    }
+  })
+
+  it('Stühle stehen neben dem Tisch, nie vorne (dort sitzt man selbst)', () => {
+    const w = TABLES.esstisch.top[0] * METER
+    const d = TABLES.esstisch.top[1] * METER
+    const places = chairPlaces(TABLES.esstisch, w, d)
+    expect(places.length).toBeGreaterThanOrEqual(3)
+    for (const p of places) {
+      expect(Math.abs(p.x) > w / 2 || Math.abs(p.z) > d / 2).toBe(true)
+      expect(p.z).toBeLessThan(d / 2)
+    }
+    expect(chairPlaces(TABLES.picknick, 100, 40)).toEqual([])
   })
 })

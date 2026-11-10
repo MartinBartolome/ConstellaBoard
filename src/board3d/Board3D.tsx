@@ -219,7 +219,8 @@ function Scene({
       const portrait = aspect < 1
       const tz = mode === 'top' || portrait ? b.cz : b.cz - b.size * 0.14
       if (mode === 'top') camera.position.set(b.cx, d * 1.45, b.cz + 0.001)
-      else camera.position.set(b.cx, d * (portrait ? 0.95 : 0.46), b.cz + d * (portrait ? 0.8 : 1.0))
+      // etwas Abstand: Tischkante und Raum sollen sichtbar bleiben
+      else camera.position.set(b.cx, d * (portrait ? 0.95 : 0.56), b.cz + d * (portrait ? 0.8 : 1.12))
       controls.current?.target.set(b.cx, 0, tz)
       camera.lookAt(b.cx, 0, tz)
       controls.current?.update()

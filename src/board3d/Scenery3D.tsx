@@ -3,7 +3,8 @@ import * as THREE from 'three'
 import { useThree } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox.js'
-import { panoramaDirection, panoramaYaw, type BoardStyle, type EnvironmentStyle } from './scenery'
+import { METER, panoramaDirection, panoramaYaw, type BoardStyle, type EnvironmentStyle, type TableSet } from './scenery'
+import { useModel } from './models'
 import { tiled, useTextureAsync } from './textures'
 
 /** Dicke des Bretts in Welt-Einheiten; die Oberseite liegt auf y = 0. */
@@ -119,32 +120,108 @@ function Inlay({ w, d }: { w: number; d: number }) {
   )
 }
 
-/** Weicher Kontaktschatten des Bretts auf dem Boden der Umgebung. */
-function GroundShadow({ rect, strength }: { rect: BoardRect; strength: number }) {
-  const tex = useMemo(() => {
-    const c = document.createElement('canvas')
-    c.width = c.height = 128
-    const g = c.getContext('2d')!
-    // konzentrische, abgerundete Rechtecke statt ctx.filter (Safari)
-    for (let i = 0; i < 24; i++) {
-      const p = 4 + i * 1.6
-      g.fillStyle = `rgba(0,0,0,${0.055})`
-      g.beginPath()
-      g.roundRect(p, p, 128 - p * 2, 128 - p * 2, 24 - i * 0.6)
-      g.fill()
-    }
-    const t = new THREE.CanvasTexture(c)
-    t.colorSpace = THREE.SRGBColorSpace
-    return t
-  }, [])
-  useEffect(() => () => tex.dispose(), [tex])
+let shadowTex: THREE.Texture | null = null
+/** Weicher, rechteckiger Schatten (Canvas statt ctx.filter, wegen Safari). */
+function softShadowTexture(): THREE.Texture {
+  if (shadowTex) return shadowTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')!
+  for (let i = 0; i < 24; i++) {
+    const p = 4 + i * 1.6
+    g.fillStyle = 'rgba(0,0,0,0.055)'
+    g.beginPath()
+    g.roundRect(p, p, 128 - p * 2, 128 - p * 2, 24 - i * 0.6)
+    g.fill()
+  }
+  shadowTex = new THREE.CanvasTexture(c)
+  shadowTex.colorSpace = THREE.SRGBColorSpace
+  return shadowTex
+}
+
+/** Kontaktschatten auf dem Boden (der Panorama-Boden nimmt keine echten Schatten an). */
+function SoftShadow({ x, y, z, w, d, rot = 0, opacity }: { x: number; y: number; z: number; w: number; d: number; rot?: number; opacity: number }) {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[rect.cx, -BOARD_THICKNESS - 0.01, rect.cz]} renderOrder={1}>
-      <planeGeometry args={[rect.w * 1.28 + 3, rect.d * 1.28 + 3]} />
-      <meshBasicMaterial map={tex} transparent opacity={strength} depthWrite={false} toneMapped={false} />
+    <mesh rotation={[-Math.PI / 2, 0, rot]} position={[x, y, z]} renderOrder={1} raycast={() => null}>
+      <planeGeometry args={[w, d]} />
+      <meshBasicMaterial map={softShadowTexture()} transparent opacity={opacity} depthWrite={false} toneMapped={false} />
     </mesh>
   )
 }
+
+/** Höhe des Fussbodens: unter der Tischplatte, auf der das Brett liegt. */
+export function floorY(set: TableSet): number {
+  return -BOARD_THICKNESS - set.height * METER
+}
+
+interface Placed {
+  x: number
+  z: number
+  rot: number
+}
+
+/** Stühle hinter dem Tisch und an den Stirnseiten; vorne sitzt man selbst. */
+export function chairPlaces(set: TableSet, w: number, d: number): Placed[] {
+  if (!set.chair) return []
+  const cw = (set.chairWidth ?? 0.5) * METER
+  const tuck = 0.16 * METER
+  const n = Math.max(1, Math.min(3, Math.floor(w / (cw * 1.7))))
+  const out: Placed[] = []
+  for (let i = 0; i < n; i++) {
+    const x = n === 1 ? 0 : -w / 2 + (w / n) * (i + 0.5)
+    // leicht unregelmässig, wie wirklich benutzte Stühle
+    out.push({ x: x + (i % 2 ? 0.6 : -0.4), z: -d / 2 - tuck - (i % 2) * 1.2, rot: (i % 2 ? -0.06 : 0.05) })
+  }
+  out.push({ x: -w / 2 - tuck - 1, z: 0.8, rot: Math.PI / 2 + 0.08 })
+  out.push({ x: w / 2 + tuck + 2, z: -0.6, rot: -Math.PI / 2 - 0.12 })
+  return out
+}
+
+/**
+ * Tisch (und Stühle) passend zur Umgebung. Wird das Brett grösser als die
+ * Tischplatte, wächst der Tisch in der Fläche mit.
+ */
+export const Furniture = memo(function Furniture({ set, rect, shadow }: { set: TableSet; rect: BoardRect; shadow: number }) {
+  const table = useModel(set.table)
+  const chair = useModel(set.chair)
+  const topW = set.top[0] * METER
+  const topD = set.top[1] * METER
+  const sx = Math.max(1, (rect.w + 5) / topW)
+  const sz = Math.max(1, (rect.d + 5) / topD)
+  const w = topW * sx
+  const d = topD * sz
+  const y = floorY(set)
+
+  const tableObj = useMemo(() => table?.clone() ?? null, [table])
+  // Grundfläche des Tischs (mit Bänken) für den Bodenschatten
+  const foot = useMemo(() => {
+    if (!table) return [w, d] as const
+    const b = new THREE.Box3().setFromObject(table)
+    const ex = (b.max.x - b.min.x) * METER
+    const ez = (b.max.z - b.min.z) * METER
+    const turned = Math.abs(Math.sin(set.rotY ?? 0)) > 0.5
+    return [(turned ? ez : ex) * sx, (turned ? ex : ez) * sz] as const
+  }, [table, set.rotY, sx, sz, w, d])
+  const places = useMemo(() => chairPlaces(set, w, d), [set, w, d])
+  const chairs = useMemo(() => (chair ? places.map(() => chair.clone()) : []), [chair, places])
+
+  return (
+    <group position={[rect.cx, 0, rect.cz]}>
+      {tableObj && (
+        <group position={[0, y, 0]} scale={[METER * sx, METER, METER * sz]}>
+          <primitive object={tableObj} rotation={[0, set.rotY ?? 0, 0]} />
+        </group>
+      )}
+      <SoftShadow x={0} y={y + 0.05} z={0} w={foot[0] * 1.25 + 6} d={foot[1] * 1.25 + 6} opacity={shadow} />
+      {chairs.map((c, i) => (
+        <group key={i} position={[places[i]!.x, y, places[i]!.z]} rotation={[0, places[i]!.rot, 0]}>
+          <primitive object={c} scale={METER} />
+          <SoftShadow x={0} y={0.06} z={0} w={(set.chairWidth ?? 0.5) * METER * 1.5} d={(set.chairWidth ?? 0.5) * METER * 1.6} opacity={shadow * 0.8} />
+        </group>
+      ))}
+    </group>
+  )
+})
 
 /**
  * Umgebung: Panorama (Poly Haven, CC0) als bodenprojizierter Hintergrund –
@@ -162,7 +239,7 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
     scene.environmentIntensity = env.envIntensity
     scene.environmentRotation.set(0, yaw, 0)
     scene.background = new THREE.Color(env.color)
-    scene.fog = env.backdrop ? null : new THREE.Fog(env.color, 70, 190)
+    scene.fog = env.backdrop ? null : new THREE.Fog(env.color, 140, 420)
     invalidate()
   }, [scene, light, env, yaw, invalidate])
 
@@ -176,12 +253,12 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
 
   const sky = useMemo(() => {
     if (!backdrop || !env.backdrop || env.groundHeight <= 0) return null
-    const s = new GroundedSkybox(backdrop, env.groundHeight, 900, 96)
+    const s = new GroundedSkybox(backdrop, env.groundHeight, env.radius, 96)
     ;(s.material as THREE.MeshBasicMaterial).toneMapped = false
     ;(s.material as THREE.MeshBasicMaterial).fog = false
     s.renderOrder = -1
     return s
-  }, [backdrop, env.backdrop, env.groundHeight])
+  }, [backdrop, env.backdrop, env.groundHeight, env.radius])
   useEffect(() => {
     invalidate()
     return () => {
@@ -191,19 +268,21 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
   }, [sky, invalidate])
 
   const sunDir = panoramaDirection(env.sun.u, env.sun.elevation, yaw)
-  const dist = 70
-  const half = Math.max(rect.w, rect.d) / 2 + 6
+  const dist = 90
+  // Brett und Tischplatte darum herum (Stühle und Boden: weiche Kontaktschatten)
+  const half = Math.max(rect.w, rect.d) / 2 + 16
+  const floor = floorY(env.furniture)
 
   return (
     <>
-      {sky && <primitive object={sky} position={[rect.cx, env.groundHeight - BOARD_THICKNESS, rect.cz]} rotation={[0, yaw, 0]} raycast={() => null} />}
+      {sky && <primitive object={sky} position={[rect.cx, floor + env.groundHeight, rect.cz]} rotation={[0, yaw, 0]} raycast={() => null} />}
       {!env.backdrop && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[rect.cx, -BOARD_THICKNESS - 0.02, rect.cz]} receiveShadow raycast={() => null}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[rect.cx, floor, rect.cz]} receiveShadow raycast={() => null}>
           <circleGeometry args={[400, 64]} />
           <meshStandardMaterial color={env.color} roughness={1} />
         </mesh>
       )}
-      <GroundShadow rect={rect} strength={env.backdrop ? 0.75 : 0.45} />
+      <Furniture set={env.furniture} rect={rect} shadow={env.backdrop ? 0.7 : 0.45} />
       <hemisphereLight args={['#fffaf0', '#c9b79c', env.backdrop ? 0.2 : 0.35]} />
       <directionalLight
         position={[rect.cx + sunDir[0] * dist, sunDir[1] * dist, rect.cz + sunDir[2] * dist]}

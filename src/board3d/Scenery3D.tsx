@@ -2,7 +2,6 @@ import { memo, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { useThree } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
-import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox.js'
 import { METER, panoramaDirection, panoramaYaw, type BoardStyle, type EnvironmentStyle, type TableSet } from './scenery'
 import { useModel } from './models'
 import { tiled, useTextureAsync } from './textures'
@@ -224,8 +223,8 @@ export const Furniture = memo(function Furniture({ set, rect, shadow }: { set: T
 })
 
 /**
- * Umgebung: Panorama (Poly Haven, CC0) als bodenprojizierter Hintergrund –
- * das Brett liegt dadurch wirklich auf der Wiese, am See usw. –, dazu
+ * Umgebung: Panorama (Poly Haven, CC0) als Hintergrund, Tisch und Stühle
+ * stehen auf dessen Boden, dazu
  * Umgebungslicht aus einem kleinen HDR und eine Sonne mit weichen Schatten.
  */
 export function Environment3D({ env, rect, hiRes, shadowSize }: { env: EnvironmentStyle; rect: BoardRect; hiRes: boolean; shadowSize: number }) {
@@ -238,7 +237,7 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
     scene.environment = light
     scene.environmentIntensity = env.envIntensity
     scene.environmentRotation.set(0, yaw, 0)
-    scene.background = new THREE.Color(env.color)
+    if (!env.backdrop || !(scene.background instanceof THREE.Texture)) scene.background = new THREE.Color(env.color)
     scene.fog = env.backdrop ? null : new THREE.Fog(env.color, 140, 420)
     invalidate()
   }, [scene, light, env, yaw, invalidate])
@@ -251,21 +250,19 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
     [scene],
   )
 
-  const sky = useMemo(() => {
-    if (!backdrop || !env.backdrop || env.groundHeight <= 0) return null
-    const s = new GroundedSkybox(backdrop, env.groundHeight, env.radius, 96)
-    ;(s.material as THREE.MeshBasicMaterial).toneMapped = false
-    ;(s.material as THREE.MeshBasicMaterial).fog = false
-    s.renderOrder = -1
-    return s
-  }, [backdrop, env.backdrop, env.groundHeight, env.radius])
+  // Panorama als unverzerrter Hintergrund (keine Bodenprojektion: die würde
+  // Wände, Bäume und Ufer verbiegen). Die Kamera bleibt nahe am Aufnahmepunkt,
+  // auf Sitzhöhe am Tisch – dadurch stimmt die Perspektive.
   useEffect(() => {
+    if (!env.backdrop || !backdrop) return
+    backdrop.mapping = THREE.EquirectangularReflectionMapping
+    scene.background = backdrop
+    scene.backgroundRotation.set(0, yaw, 0)
     invalidate()
     return () => {
-      sky?.geometry.dispose()
-      ;(sky?.material as THREE.Material | undefined)?.dispose()
+      scene.background = new THREE.Color(env.color)
     }
-  }, [sky, invalidate])
+  }, [scene, backdrop, env.backdrop, env.color, yaw, invalidate])
 
   const sunDir = panoramaDirection(env.sun.u, env.sun.elevation, yaw)
   const dist = 90
@@ -275,7 +272,6 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
 
   return (
     <>
-      {sky && <primitive object={sky} position={[rect.cx, floor + env.groundHeight, rect.cz]} rotation={[0, yaw, 0]} raycast={() => null} />}
       {!env.backdrop && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[rect.cx, floor, rect.cz]} receiveShadow raycast={() => null}>
           <circleGeometry args={[400, 64]} />

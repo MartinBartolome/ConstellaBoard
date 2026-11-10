@@ -77,10 +77,6 @@ export interface EnvironmentStyle {
   file: string
   /** Hintergrundbild (sonst einfarbig) */
   backdrop: boolean
-  /** Kamerahöhe der Aufnahme über dem Boden in Welt-Einheiten (Bodenprojektion) */
-  groundHeight: number
-  /** Radius der Bodenprojektion (Räume klein, Landschaften gross) */
-  radius: number
   /** Tisch und Stühle, passend zur Umgebung */
   furniture: TableSet
   /** Horizontale Bildstelle (0–1), die hinter dem Brett liegen soll */
@@ -101,8 +97,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Holz und Tageslicht',
     file: 'atelier',
     backdrop: true,
-    groundHeight: 58,
-    radius: 260,
     furniture: TABLES.hell,
     viewU: 0.55,
     sun: { u: 0.73, elevation: 34, intensity: 1.3, color: '#fff6ea' },
@@ -116,8 +110,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Sofa und Kamin',
     file: 'wohnzimmer',
     backdrop: true,
-    groundHeight: 58,
-    radius: 240,
     furniture: TABLES.esstisch,
     viewU: 0.6,
     sun: { u: 0.63, elevation: 32, intensity: 1.2, color: '#fff3e2' },
@@ -131,8 +123,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Klassisch und warm',
     file: 'salon',
     backdrop: true,
-    groundHeight: 58,
-    radius: 240,
     furniture: TABLES.salon,
     viewU: 0.58,
     sun: { u: 0.58, elevation: 30, intensity: 1.1, color: '#fff1dc' },
@@ -146,8 +136,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Hell und schlicht',
     file: 'raum',
     backdrop: false,
-    groundHeight: 0,
-    radius: 0,
     furniture: TABLES.hell,
     viewU: 0.25,
     sun: { u: 0.23, elevation: 50, intensity: 1.6, color: '#fff4e2' },
@@ -161,8 +149,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Weite und Berge',
     file: 'alpenwiese',
     backdrop: true,
-    groundHeight: 64,
-    radius: 900,
     furniture: TABLES.picknick,
     viewU: 0.47,
     sun: { u: 0.6, elevation: 42, intensity: 2.4, color: '#fff3dc' },
@@ -176,8 +162,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Gras und Bäume',
     file: 'sommerwiese',
     backdrop: true,
-    groundHeight: 64,
-    radius: 900,
     furniture: TABLES.picknick,
     viewU: 0.78,
     sun: { u: 0.6, elevation: 27, intensity: 2.4, color: '#fff1d6' },
@@ -191,8 +175,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Moos, Schatten, Stille',
     file: 'waldbach',
     backdrop: true,
-    groundHeight: 64,
-    radius: 900,
     furniture: TABLES.picknick,
     viewU: 0.5,
     sun: { u: 0.78, elevation: 55, intensity: 1.1, color: '#f1f6e4' },
@@ -206,10 +188,8 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Wasser und Licht',
     file: 'seeufer',
     backdrop: true,
-    groundHeight: 64,
-    radius: 900,
     furniture: TABLES.picknick,
-    viewU: 0.75,
+    viewU: 0.5,
     sun: { u: 0.6, elevation: 32, intensity: 2.3, color: '#fff4e0' },
     envIntensity: 0.9,
     color: '#8aa9c0',
@@ -221,8 +201,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Wärme und Meer',
     file: 'strand',
     backdrop: true,
-    groundHeight: 64,
-    radius: 900,
     furniture: TABLES.picknick,
     viewU: 0.62,
     sun: { u: 0.64, elevation: 32, intensity: 2.3, color: '#fff2da' },
@@ -236,8 +214,6 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     mood: 'Weicher Himmel',
     file: 'abendfeld',
     backdrop: true,
-    groundHeight: 64,
-    radius: 900,
     furniture: TABLES.picknick,
     viewU: 0.6,
     sun: { u: 0.6, elevation: 22, intensity: 1.3, color: '#ffd9b8' },

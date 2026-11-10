@@ -54,7 +54,7 @@ Anwesenheit (Presence), Cursor (max. 10/s) und Steuernachrichten (`ended`, `perm
 `src/board3d/` – React Three Fiber, nachgeladen. Arbeitet auf denselben Daten wie 2D.
 
 - `Figure3D.tsx`, `geometry3d.ts`: gedrechselte Figuren (Profil um die Hochachse gedreht, Querschnitt rund/eckig/sechseckig), PBR-Material mit Ahorn-Maserung, Geometrien werden geteilt.
-- `Scenery3D.tsx`: Systembrett (Holz oder Stoff im Rahmen), darunter Tisch und Stühle passend zur Umgebung (GLB-Modelle über `models.ts`, Tisch wächst mit dem Brett), und Umgebung (bodenprojiziertes Panorama auf Fussbodenhöhe, HDR-Umgebungslicht, Sonne mit Schatten). Massstab: 1 m = 40 Welt-Einheiten.
+- `Scenery3D.tsx`: Systembrett (Holz oder Stoff im Rahmen), darunter Tisch und Stühle passend zur Umgebung (GLB-Modelle über `models.ts`, Tisch wächst mit dem Brett), und Umgebung (Panorama als unverzerrter Hintergrund, Kamera auf Sitzhöhe nahe am Aufnahmepunkt, HDR-Umgebungslicht, Sonne mit Schatten). Massstab: 1 m = 40 Welt-Einheiten.
 - GLB-Texturen werden über `blob:`-URLs dekodiert; dafür erlaubt die CSP `connect-src blob:`.
 - `scenery.ts`: Katalog der Bretter und Umgebungen, persönliche Einstellung im `localStorage` (wird nicht synchronisiert).
 - Assets in `public/3d/` (Poly Haven, CC0, siehe `public/3d/LIZENZEN.md`). Handys laden 2k-Panoramen und kleinere Schattenkarten.

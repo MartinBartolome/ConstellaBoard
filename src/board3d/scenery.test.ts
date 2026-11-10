@@ -83,9 +83,8 @@ describe('Tisch und Stühle', () => {
       const set = env.furniture
       expect(existsSync(`public/3d/moebel/${set.table}.glb`)).toBe(true)
       if (set.chair) expect(existsSync(`public/3d/moebel/${set.chair}.glb`)).toBe(true)
-      // Fussboden unter der Tischplatte, Panorama-Kamera darüber
+      // Fussboden unter der Tischplatte
       expect(floorY(set)).toBeLessThan(-20)
-      if (env.backdrop) expect(env.radius).toBeGreaterThan(env.groundHeight)
     }
   })
 

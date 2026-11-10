@@ -16,6 +16,7 @@ export function createActions(ed: EditorApi) {
   const { store, perms } = ed
   const sel = () => [...ed.selection]
   const center = (): Point =>
+    ed.viewCenter?.() ??
     toBoard(ed.viewport, { x: ed.canvasSize.width / 2, y: ed.canvasSize.width < 900 ? ed.canvasSize.height * 0.38 : ed.canvasSize.height / 2 })
 
   return {

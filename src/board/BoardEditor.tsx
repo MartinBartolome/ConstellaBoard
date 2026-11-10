@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { BoardStore } from '../state/boardStore'
 import { Canvas, isTyping } from './Canvas'
 import { ContextMenu } from './ContextMenu'
@@ -11,6 +11,33 @@ import { Icon } from '../components/Icon'
 import { CONNECTION_PRESETS } from '../domain/connections'
 import type { ConnectionType } from '../domain/types'
 import { useMediaQuery } from '../lib/useMediaQuery'
+import type { Board3DHandle } from '../board3d/Board3D'
+
+// Die 3D-Ansicht (Three.js) wird erst geladen, wenn sie gebraucht wird
+const Board3D = lazy(() => import('../board3d/Board3D'))
+
+export type BoardView = '2d' | '3d'
+const VIEW_KEY = 'constellaboard.view'
+
+function loadView(): BoardView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === '3d' && webglAvailable() ? '3d' : '2d'
+  } catch {
+    return '2d'
+  }
+}
+
+let webglCache: boolean | null = null
+function webglAvailable(): boolean {
+  if (webglCache !== null) return webglCache
+  try {
+    const c = document.createElement('canvas')
+    webglCache = !!(c.getContext('webgl2') || c.getContext('webgl'))
+  } catch {
+    webglCache = false
+  }
+  return webglCache
+}
 
 export interface BoardEditorProps {
   store: BoardStore
@@ -46,6 +73,16 @@ export function BoardEditor({ store, perms, headerLeft, headerRight, overlay, ba
   const [libraryOpen, setLibraryOpen] = useState(isWide)
   const [propsOpen, setPropsOpen] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
+  const [view, setViewState] = useState<BoardView>(loadView)
+  const board3d = useRef<Board3DHandle | null>(null)
+  const setView = useCallback((v: BoardView) => {
+    setViewState(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      /* privater Modus: Auswahl gilt nur für diesen Besuch */
+    }
+  }, [])
   const toastTimer = useRef<number | null>(null)
   const centered = useRef(false)
   useStoreVersion(store)
@@ -118,6 +155,7 @@ export function BoardEditor({ store, perms, headerLeft, headerRight, overlay, ba
     },
     labelFocusToken,
     notify,
+    viewCenter: view === '3d' ? () => board3d.current?.center() ?? { x: 0, y: 0 } : undefined,
   }
   const actions = useMemo(() => createActions(api), [api])
 
@@ -177,7 +215,13 @@ export function BoardEditor({ store, perms, headerLeft, headerRight, overlay, ba
     if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return false
     // nicht auf Panels ablegen
     const under = document.elementFromPoint(clientX, clientY)
-    if (under && !under.closest('[data-testid="board"]')) return false
+    if (under && !under.closest('[data-testid="board"], [data-testid="board-3d"]')) return false
+    if (view === '3d') {
+      const p = board3d.current?.pick(clientX, clientY)
+      if (!p) return false
+      actions.addFigure(type, p)
+      return true
+    }
     actions.addFigure(type, toBoard(viewport, { x: clientX - r.left, y: clientY - r.top }))
     return true
   }
@@ -202,11 +246,27 @@ export function BoardEditor({ store, perms, headerLeft, headerRight, overlay, ba
         </header>
         {banner}
         <div className="relative flex-1" ref={canvasWrap}>
-          <Canvas overlay={overlay} onDropTemplate={(type, p) => actions.addFigure(type, p)} />
+          {view === '2d' ? (
+            <Canvas overlay={overlay} onDropTemplate={(type, p) => actions.addFigure(type, p)} />
+          ) : (
+            <View3DBoundary onError={() => { setView('2d'); notify('Die 3D-Ansicht konnte nicht geladen werden.') }}>
+              <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">3D-Ansicht wird geladen …</div>}>
+                <Board3D handleRef={board3d} />
+              </Suspense>
+            </View3DBoundary>
+          )}
 
           {/* Werkzeuge */}
           <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
             <div className="panel pointer-events-auto flex items-center gap-0.5 p-1" role="toolbar" aria-label="Werkzeuge">
+              <ViewToggle view={view} onChange={(v) => {
+                if (v === '3d' && !webglAvailable()) {
+                  notify('Dieses Gerät unterstützt keine 3D-Darstellung (WebGL).')
+                  return
+                }
+                setContextMenu(null)
+                setView(v)
+              }} />
               <button className="icon-btn" aria-pressed={tool === 'select'} onClick={() => api.setTool('select')} aria-label="Auswählen" title="Auswählen (V)">
                 <Icon name="pointer" />
               </button>
@@ -298,7 +358,7 @@ export function BoardEditor({ store, perms, headerLeft, headerRight, overlay, ba
             ))}
 
           {/* Zoom */}
-          {(isWide || !showProps) && (
+          {view === '2d' && (isWide || !showProps) && (
             <div className={`panel absolute right-3 z-10 flex items-center gap-0.5 p-1 ${isWide ? 'bottom-3' : libraryOpen ? 'top-3 flex-col' : 'bottom-4'}`}>
               <button className="icon-btn" onClick={() => actions.zoomBy(1 / 1.25)} aria-label="Verkleinern" data-testid="zoom-out">
                 <Icon name="minus" />
@@ -326,6 +386,41 @@ export function BoardEditor({ store, perms, headerLeft, headerRight, overlay, ba
       </div>
     </EditorContext.Provider>
   )
+}
+
+/** Umschalter zwischen 2D-Brett und 3D-Ansicht. */
+function ViewToggle({ view, onChange }: { view: BoardView; onChange: (v: BoardView) => void }) {
+  return (
+    <div className="mr-1 flex rounded-xl bg-paper-2 p-0.5" role="group" aria-label="Ansicht">
+      {(['2d', '3d'] as const).map((v) => (
+        <button
+          key={v}
+          className={`h-10 min-w-10 rounded-[10px] px-2 text-sm font-semibold ${view === v ? 'bg-surface text-moss-dark shadow-soft' : 'text-ink-3 hover:text-ink-2'}`}
+          aria-pressed={view === v}
+          onClick={() => onChange(v)}
+          title={v === '2d' ? '2D-Brett (Draufsicht)' : '3D-Ansicht'}
+          data-testid={`view-${v}`}
+        >
+          {v.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Fällt bei Fehlern der 3D-Ansicht (z. B. WebGL-Kontext verloren) auf 2D zurück. */
+class View3DBoundary extends Component<{ children: ReactNode; onError: () => void }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  componentDidCatch(err: unknown) {
+    console.error('3D-Ansicht', err)
+    this.props.onError()
+  }
+  render() {
+    return this.state.failed ? null : this.props.children
+  }
 }
 
 /** Kompakte Aktionsleiste für die Auswahl auf Smartphones. */

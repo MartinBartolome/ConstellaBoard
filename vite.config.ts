@@ -23,6 +23,8 @@ function spaFallback(): Plugin {
 export default defineConfig({
   base,
   plugins: [react(), tailwindcss(), spaFallback()],
+  // Die 3D-Ansicht (Three.js) ist ein eigener, nachgeladener Teil von ~1 MB
+  build: { chunkSizeWarningLimit: 1100 },
   server: { port: 5173, host: true },
   test: {
     environment: 'jsdom',

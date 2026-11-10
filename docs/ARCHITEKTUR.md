@@ -48,3 +48,15 @@ Anwesenheit (Presence), Cursor (max. 10/s) und Steuernachrichten (`ended`, `perm
 | PDF-/Bildexport | Brett ist reines SVG → direkt serialisierbar |
 | Abrechnung/Abos | Sitzungserstellung läuft zentral über `create-session` |
 | Datenmodell-Migrationen | `BoardState.schema` |
+
+## 3D-Ansicht
+
+`src/board3d/` – React Three Fiber, nachgeladen. Arbeitet auf denselben Daten wie 2D.
+
+- `Figure3D.tsx`, `geometry3d.ts`: gedrechselte Figuren (Profil um die Hochachse gedreht, Querschnitt rund/eckig/sechseckig), PBR-Material mit Ahorn-Maserung, Geometrien werden geteilt.
+- `Scenery3D.tsx`: Systembrett (Holz oder Stoff im Rahmen), darunter Tisch und Stühle passend zur Umgebung (GLB-Modelle über `models.ts`, Tisch wächst mit dem Brett), und Umgebung (Panorama als unverzerrter Hintergrund, Kamera auf Sitzhöhe nahe am Aufnahmepunkt, HDR-Umgebungslicht, Sonne mit Schatten). Massstab: 1 m = 40 Welt-Einheiten.
+- GLB-Texturen werden über `blob:`-URLs dekodiert; dafür erlaubt die CSP `connect-src blob:`.
+- `Surroundings3D.tsx`: die Welt um den Tisch. Räume werden gebaut (Boden, Wände mit Fenstern, Vorhänge, Decke, Teppich, Einrichtung aus `moebel/raum-*.glb`), durch die Fenster sieht man ein Panorama. Draussen liegt ein echter Boden mit prozeduralem Gras, Steinen und Pflanzen (`moebel/natur.glb`), der weich in das Panorama übergeht. Detailstufen: Desktop, Handy, ohne Grafikkarte (kein Gras, weniger Pflanzen, kleinere Auflösung; `?hq` erzwingt volle Qualität).
+- `scenery.ts`: Katalog der Bretter und Umgebungen, persönliche Einstellung im `localStorage` (wird nicht synchronisiert).
+- Assets in `public/3d/` (Poly Haven, CC0, siehe `public/3d/LIZENZEN.md`). Handys laden 2k-Panoramen und kleinere Schattenkarten.
+- Der Satz einer Figur (`speech`) ist ein normales, optionales Figurenfeld und wird wie alle Felder synchronisiert und serverseitig validiert (max. 200 Zeichen).

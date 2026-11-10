@@ -51,6 +51,11 @@ export interface Figure extends BaseEntity {
   color: string
   label: string
   groupId: string | null
+  /**
+   * Einprägsamer Satz, den die Figur „spricht" (Sprechblase).
+   * Optional, weil ältere Bretter das Feld noch nicht kennen.
+   */
+  speech?: string
 }
 
 export type ConnectionType =

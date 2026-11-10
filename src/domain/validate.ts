@@ -8,6 +8,14 @@ import type { BoardEntity, BoardOp, Rev } from './types.ts'
 const ID = /^[A-Za-z0-9_-]{4,64}$/
 const COLOR = /^#[0-9a-fA-F]{6}$/
 const MAX_OPS_PER_BATCH = 500
+/** Höchstlänge des Satzes, den eine Figur „spricht" */
+export const MAX_SPEECH = 200
+
+/**
+ * Felder, die später dazugekommen sind und fehlen dürfen. So bleiben Bretter
+ * gültig, die vor ihrer Einführung gespeichert wurden.
+ */
+const OPTIONAL_FIELDS = new Set(['speech'])
 
 const isNum = (v: unknown, min = -1e6, max = 1e6) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max
 const isStr = (v: unknown, max: number) => typeof v === 'string' && v.length <= max
@@ -33,6 +41,7 @@ const FIGURE_FIELDS: Record<string, FieldCheck> = {
   color: isColor,
   label: (v) => isStr(v, 80),
   groupId: (v) => v === null || isId(v),
+  speech: (v) => isStr(v, MAX_SPEECH),
 }
 
 const NOTE_FIELDS: Record<string, FieldCheck> = {
@@ -77,8 +86,9 @@ export function isValidEntity(e: unknown): e is BoardEntity {
   const fields = typeof o.kind === 'string' ? FIELDS_BY_KIND[o.kind] : undefined
   if (!fields || !isId(o.id)) return false
   const keys = Object.keys(o).filter((k) => k !== 'id' && k !== 'kind')
-  if (keys.length !== Object.keys(fields).length) return false
-  return keys.every((k) => fields[k]?.(o[k]) === true)
+  const required = Object.keys(fields).filter((k) => !OPTIONAL_FIELDS.has(k))
+  if (!required.every((k) => k in o)) return false
+  return keys.every((k) => Object.hasOwn(fields, k) && fields[k]!(o[k]) === true)
 }
 
 /** Prüft ein Patch gegen die Feldregeln einer Elementart (falls bekannt). */

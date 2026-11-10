@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
-import { Grid, Html, OrbitControls } from '@react-three/drei'
+import { Html, OrbitControls } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { useBoardState, useEditor, type EditorApi } from '../board/editor'
 import { noteSize } from '../board/geometry'
@@ -14,6 +14,10 @@ import type { BoardEntity, BoardState, Connection, Figure, Note } from '../domai
 import { Connection3D } from './Connection3D'
 import { FigureModel, figureHeight } from './Figure3D'
 import { WORLD_SCALE, rotationTowards, toBoardPoint, yawFromRotation, type BoardPoint } from './coords'
+import { getBoardStyle, getEnvironment, useViewSettings } from './scenery'
+import { Environment3D, Systembrett, type BoardRect } from './Scenery3D'
+import { SceneryPanel } from './SceneryPanel'
+import { SpeechBubble } from './SpeechBubble'
 
 /** Von aussen nutzbare Funktionen der 3D-Ansicht (z. B. Ablegen aus der Bibliothek). */
 export interface Board3DHandle {
@@ -30,11 +34,45 @@ export interface Board3DHandle {
 type Movable = Figure | Note
 
 type Gesture =
-  | { kind: 'drag'; pointerId: number; sx: number; sy: number; start: BoardPoint; starts: Map<string, BoardPoint>; moved: boolean; hitId: string; wasSelected: boolean; additive: boolean }
+  | {
+      kind: 'drag'
+      pointerId: number
+      sx: number
+      sy: number
+      start: BoardPoint
+      starts: Map<string, BoardPoint>
+      moved: boolean
+      hitId: string
+      wasSelected: boolean
+      additive: boolean
+    }
   | { kind: 'rotate'; pointerId: number; id: string; center: BoardPoint; startAngle: number; startRotation: number; current: number }
 
 const DRAG_THRESHOLD = 5
-const PAPER = '#f7f3ec'
+
+/** Schwächere Geräte (Handy, Tablet): kleinere Texturen und Schattenkarten. */
+function detectLowPower(): boolean {
+  if (typeof window === 'undefined') return false
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false
+  return coarse || Math.min(window.screen.width, window.screen.height) < 700
+}
+
+/** WebGL ohne Grafikkarte (z. B. SwiftShader, llvmpipe): sparsam rendern. */
+export function softwareRendering(): boolean {
+  if (typeof document === 'undefined') return false
+  // ?hq: volle Qualität erzwingen (Screenshots, Vergleiche)
+  if (new URLSearchParams(window.location.search).has('hq')) return false
+  try {
+    const gl = document.createElement('canvas').getContext('webgl')
+    if (!gl) return true
+    const info = gl.getExtension('WEBGL_debug_renderer_info')
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))
+    gl.getExtension('WEBGL_lose_context')?.loseContext()
+    return /swiftshader|llvmpipe|software|softpipe/i.test(name)
+  } catch {
+    return false
+  }
+}
 
 /**
  * Umschaltbare 3D-Ansicht des Systembretts. Nutzt dieselben Daten wie die
@@ -50,68 +88,131 @@ export default function Board3D({ handleRef }: { handleRef: RefObject<Board3DHan
   const entities = useMemo(() => listEntities(state), [state])
   const visible = useMemo(() => (ed.perms.seeHidden ? entities : entities.filter((e) => e.visible)), [entities, ed.perms.seeHidden])
   const figureCount = visible.filter((e) => e.kind === 'figure').length
+  const settings = useViewSettings()
+  const env = getEnvironment(settings.environment)
+  // Ohne Grafikkarte rechnet die CPU jedes Pixel: kleinere Auflösung und Schatten
+  const software = useMemo(softwareRendering, [])
+  const lowPower = useMemo(() => software || detectLowPower(), [software])
+  const [panelOpen, setPanelOpen] = useState(false)
 
   return (
-    <div className="absolute inset-0 isolate overflow-hidden" data-testid="board-3d" data-figures={figureCount} style={{ background: PAPER }}>
+    <div
+      className="absolute inset-0 isolate overflow-hidden"
+      data-testid="board-3d"
+      data-figures={figureCount}
+      data-environment={env.id}
+      data-board={getBoardStyle(settings.board).id}
+      style={{ background: env.color }}
+    >
       <Canvas
         shadows
-        dpr={[1, 2]}
+        dpr={software ? 0.6 : lowPower ? [1, 1.5] : [1, 2]}
         frameloop="demand"
-        camera={{ fov: 42, near: 0.1, far: 600, position: [0, 18, 16] }}
-        gl={{ antialias: true, preserveDrawingBuffer: false }}
+        camera={{ fov: 42, near: 0.1, far: 2500, position: [0, 18, 16] }}
+        gl={{ antialias: true, preserveDrawingBuffer: false, toneMapping: THREE.AgXToneMapping, toneMappingExposure: 0.95 }}
         onContextMenu={(e) => e.preventDefault()}
         aria-label="Systembrett in 3D"
       >
-        <color attach="background" args={[PAPER]} />
-        <fog attach="fog" args={[PAPER, 90, 220]} />
-        <Scene ed={ed} state={state} visible={visible} handleRef={handleRef} />
+        <Scene ed={ed} state={state} visible={visible} handleRef={handleRef} lowPower={lowPower} software={software} />
       </Canvas>
-      <ViewButtons handleRef={handleRef} />
+      <ViewButtons handleRef={handleRef} onScenery={() => setPanelOpen((v) => !v)} sceneryOpen={panelOpen} />
+      {panelOpen && <SceneryPanel onClose={() => setPanelOpen(false)} />}
     </div>
   )
 }
 
-function ViewButtons({ handleRef }: { handleRef: RefObject<Board3DHandle | null> }) {
+function ViewButtons({ handleRef, onScenery, sceneryOpen }: { handleRef: RefObject<Board3DHandle | null>; onScenery: () => void; sceneryOpen: boolean }) {
   return (
     <div className="panel absolute right-3 bottom-4 z-10 flex items-center gap-0.5 p-1" data-testid="view3d-controls">
+      <button
+        className={`flex h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-medium ${sceneryOpen ? 'bg-moss/15 text-moss' : 'text-ink-2 hover:bg-paper-2'}`}
+        onClick={onScenery}
+        aria-expanded={sceneryOpen}
+        data-testid="scenery-button"
+        title="Umgebung und Brett wählen"
+      >
+        <Icon name="landscape" size={17} />
+        Umgebung
+      </button>
       <button className="icon-btn" onClick={() => handleRef.current?.topView()} aria-label="Draufsicht" title="Draufsicht">
         <Icon name="fit" />
       </button>
-      <button className="h-11 rounded-xl px-3 text-xs font-medium text-ink-2 hover:bg-paper-2" onClick={() => handleRef.current?.resetView()} title="Kamera zurücksetzen">
-        Ansicht zurücksetzen
+      <button
+        className="h-11 rounded-xl px-3 text-xs font-medium text-ink-2 hover:bg-paper-2"
+        onClick={() => handleRef.current?.resetView()}
+        title="Kamera zurücksetzen"
+      >
+        <span className="hidden sm:inline">Ansicht zurücksetzen</span>
+        <span className="sm:hidden">Zurücksetzen</span>
       </button>
     </div>
   )
 }
 
-function boundsOf(entities: BoardEntity[]): { cx: number; cz: number; size: number } {
-  const pts = entities.filter((e): e is Movable => e.kind !== 'connection')
-  if (pts.length === 0) return { cx: 0, cz: 0, size: 14 }
-  let x1 = Infinity, z1 = Infinity, x2 = -Infinity, z2 = -Infinity
-  for (const e of pts) {
-    x1 = Math.min(x1, e.x)
-    x2 = Math.max(x2, e.x)
-    z1 = Math.min(z1, e.y)
-    z2 = Math.max(z2, e.y)
+/** Brettgrösse: mindestens ein handliches Brett, wächst mit den Figuren mit. */
+const MIN_BOARD = { w: 26, d: 18 }
+const BOARD_MARGIN = 2.5
+const BOARD_STEP = 2
+
+export function boardRectOf(entities: BoardEntity[]): BoardRect {
+  let x1 = -MIN_BOARD.w / 2
+  let x2 = MIN_BOARD.w / 2
+  let z1 = -MIN_BOARD.d / 2
+  let z2 = MIN_BOARD.d / 2
+  for (const e of entities) {
+    if (e.kind === 'connection') continue
+    const pad = e.kind === 'figure' ? getTemplate(e.type).size * e.scale * WORLD_SCALE + BOARD_MARGIN : BOARD_MARGIN + 3
+    x1 = Math.min(x1, e.x * WORLD_SCALE - pad)
+    x2 = Math.max(x2, e.x * WORLD_SCALE + pad)
+    z1 = Math.min(z1, e.y * WORLD_SCALE - pad)
+    z2 = Math.max(z2, e.y * WORLD_SCALE + pad)
   }
-  return {
-    cx: ((x1 + x2) / 2) * WORLD_SCALE,
-    cz: ((z1 + z2) / 2) * WORLD_SCALE,
-    size: Math.max(14, Math.max(x2 - x1, z2 - z1) * WORLD_SCALE + 8),
-  }
+  const snap = (v: number, up: boolean) => (up ? Math.ceil(v / BOARD_STEP) : Math.floor(v / BOARD_STEP)) * BOARD_STEP
+  x1 = snap(x1, false)
+  x2 = snap(x2, true)
+  z1 = snap(z1, false)
+  z2 = snap(z2, true)
+  return { cx: (x1 + x2) / 2, cz: (z1 + z2) / 2, w: x2 - x1, d: z2 - z1 }
 }
 
-function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardState; visible: BoardEntity[]; handleRef: RefObject<Board3DHandle | null> }) {
+function Scene({
+  ed,
+  state,
+  visible,
+  handleRef,
+  lowPower,
+  software,
+}: {
+  ed: EditorApi
+  state: BoardState
+  visible: BoardEntity[]
+  handleRef: RefObject<Board3DHandle | null>
+  lowPower: boolean
+  software: boolean
+}) {
   const { camera, gl, invalidate } = useThree()
+  // drei <Html> verliert seinen Inhalt, wenn es vor dem Verbinden der Ereignisse
+  // eingehängt wird (Zielelement wechselt). Darum Beschriftungen erst danach zeigen.
+  const htmlReady = !!useThree((s) => s.events.connected)
   const controls = useRef<OrbitControlsImpl>(null)
   const gesture = useRef<Gesture | null>(null)
   const lastTap = useRef<{ id: string | null; t: number }>({ id: null, t: 0 })
   /** Wurde die aktuelle Berührung auf der freien Fläche begonnen? */
   const groundDown = useRef(false)
-  const [lightCenter, setLightCenter] = useState<[number, number]>([0, 0])
   const { store, perms, selection, setSelection, tool } = ed
+  const settings = useViewSettings()
+  const env = getEnvironment(settings.environment)
+  const boardStyle = getBoardStyle(settings.board)
+  // Alle Elemente (auch ausgeblendete) bestimmen die Brettgrösse, damit das Brett nicht springt
+  const rectRaw = useMemo(() => boardRectOf(listEntities(state)), [state])
+  const rectKey = `${rectRaw.cx}:${rectRaw.cz}:${rectRaw.w}:${rectRaw.d}`
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rect = useMemo(() => rectRaw, [rectKey])
 
-  const helpers = useMemo(() => ({ raycaster: new THREE.Raycaster(), ndc: new THREE.Vector2(), plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit: new THREE.Vector3() }), [])
+  const helpers = useMemo(
+    () => ({ raycaster: new THREE.Raycaster(), ndc: new THREE.Vector2(), plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit: new THREE.Vector3() }),
+    [],
+  )
 
   const pick = useCallback(
     (clientX: number, clientY: number): BoardPoint | null => {
@@ -127,28 +228,37 @@ function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardS
 
   const frame = useCallback(
     (mode: 'perspective' | 'top') => {
-      const b = boundsOf(visible)
-      // Hochformat (Handy): weiter weg, damit alles in die Breite passt
-      const aspect = gl.domElement.clientWidth / Math.max(1, gl.domElement.clientHeight)
-      const d = b.size * 1.05 * Math.max(1, 1.1 / aspect)
+      // Ganzes Brett ins Bild holen
+      const b = { cx: rect.cx, cz: rect.cz, size: Math.max(rect.w, rect.d * 1.2) * 0.82 }
+      // Hochformat (Handy): so weit weg, dass das Brett (fast) in die Breite passt
+      const aspect = Math.max(1, gl.domElement.clientWidth) / Math.max(1, gl.domElement.clientHeight)
+      const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 42
+      const tanH = Math.tan((fov * Math.PI) / 360) * aspect
+      const d = Math.max(b.size * 1.05, (rect.w * 0.56) / tanH / 1.1)
+      // Perspektive: flacher Blick, damit hinter dem Brett die Landschaft sichtbar wird
+      // Hochformat: steiler von oben, damit das Brett den Bildschirm besser füllt
+      const portrait = aspect < 1
+      const tz = mode === 'top' || portrait ? b.cz : b.cz - b.size * 0.14
       if (mode === 'top') camera.position.set(b.cx, d * 1.45, b.cz + 0.001)
-      else camera.position.set(b.cx, d * 0.85, b.cz + d * 0.95)
-      controls.current?.target.set(b.cx, 0, b.cz)
-      camera.lookAt(b.cx, 0, b.cz)
+      // etwas Abstand: Tischkante und Raum sollen sichtbar bleiben
+      else camera.position.set(b.cx, d * (portrait ? 0.95 : 0.56), b.cz + d * (portrait ? 0.8 : 1.12))
+      controls.current?.target.set(b.cx, 0, tz)
+      camera.lookAt(b.cx, 0, tz)
       controls.current?.update()
-      setLightCenter([b.cx, b.cz])
       invalidate()
     },
-    [camera, gl, invalidate, visible],
+    [camera, gl, invalidate, rect],
   )
 
   // Beim Öffnen einmal alles ins Bild holen
   const framed = useRef(false)
+  const viewport = useThree((s) => s.size)
   useEffect(() => {
-    if (framed.current) return
+    // erst, wenn die Grösse der Zeichenfläche bekannt ist (Hochformat!)
+    if (framed.current || viewport.width < 2 || viewport.height < 2) return
     framed.current = true
     frame('perspective')
-  }, [frame])
+  }, [frame, viewport.width, viewport.height])
 
   useEffect(() => {
     handleRef.current = {
@@ -301,7 +411,18 @@ function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardS
       if (ent && ent.kind !== 'connection' && !ent.locked) starts.set(id, { x: ent.x, y: ent.y })
     }
     if (starts.size === 0) return
-    gesture.current = { kind: 'drag', pointerId: ne.pointerId, sx: ne.clientX, sy: ne.clientY, start, starts, moved: false, hitId: hit.id, wasSelected, additive }
+    gesture.current = {
+      kind: 'drag',
+      pointerId: ne.pointerId,
+      sx: ne.clientX,
+      sy: ne.clientY,
+      start,
+      starts,
+      moved: false,
+      hitId: hit.id,
+      wasSelected,
+      additive,
+    }
     if (controls.current) controls.current.enabled = false
   }
 
@@ -311,7 +432,15 @@ function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardS
     const p = pick(e.nativeEvent.clientX, e.nativeEvent.clientY)
     if (!p) return
     const center = { x: f.x, y: f.y }
-    gesture.current = { kind: 'rotate', pointerId: e.nativeEvent.pointerId, id: f.id, center, startAngle: rotationTowards(center, p), startRotation: f.rotation, current: f.rotation }
+    gesture.current = {
+      kind: 'rotate',
+      pointerId: e.nativeEvent.pointerId,
+      id: f.id,
+      center,
+      startAngle: rotationTowards(center, p),
+      startRotation: f.rotation,
+      current: f.rotation,
+    }
     if (controls.current) controls.current.enabled = false
   }
 
@@ -330,7 +459,6 @@ function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardS
   const rotatable = single?.kind === 'figure' && perms.edit && !single.locked && tool !== 'connect' ? single : null
 
   const hand = tool === 'hand'
-  const [lx, lz] = lightCenter
 
   return (
     <>
@@ -339,34 +467,23 @@ function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardS
         makeDefault
         enableDamping={false}
         minDistance={3}
-        maxDistance={160}
-        maxPolarAngle={1.38}
+        maxDistance={env.setting?.kind === 'room' ? 120 : 160}
+        // Im Raum vorne bleiben: nicht durch die Seitenwände hinausdrehen
+        minAzimuthAngle={env.setting?.kind === 'room' ? -1.2 : -Infinity}
+        maxAzimuthAngle={env.setting?.kind === 'room' ? 1.2 : Infinity}
+        maxPolarAngle={1.45}
         screenSpacePanning={false}
         mouseButtons={{ LEFT: hand ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
         touches={{ ONE: hand ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
 
-      <hemisphereLight args={['#fffaf0', '#d8c8ae', 1.5]} />
-      <directionalLight
-        position={[lx + 18, 34, lz + 14]}
-        intensity={1.6}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-camera-left={-45}
-        shadow-camera-right={45}
-        shadow-camera-top={45}
-        shadow-camera-bottom={-45}
-        shadow-camera-near={1}
-        shadow-camera-far={120}
-      >
-        <object3D attach="target" position={[lx, 0, lz]} />
-      </directionalLight>
+      <Environment3D env={env} rect={rect} hiRes={!lowPower} shadowSize={software ? 512 : lowPower ? 1024 : 2048} detail={software ? 'minimal' : lowPower ? 'lite' : 'full'} />
+      <Systembrett rect={rect} style={boardStyle} />
 
-      {/* Brettoberfläche */}
+      {/* Unsichtbare Ebene auf Brett-Höhe: Klicks, Abwählen, Cursor – auch neben dem Brett */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
+        position={[0, 0.002, 0]}
         onPointerDown={(e) => {
           groundDown.current = e.nativeEvent.button !== 2
           if (e.nativeEvent.button === 2) return
@@ -389,22 +506,9 @@ function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardS
           ed.setContextMenu({ x: e.nativeEvent.clientX, y: e.nativeEvent.clientY, id: null, boardX: bp.x, boardY: bp.y })
         }}
       >
-        <planeGeometry args={[600, 600]} />
-        <meshStandardMaterial color="#fbf5ea" roughness={0.95} />
+        <planeGeometry args={[1200, 1200]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
-      <Grid
-        position={[0, 0.005, 0]}
-        args={[600, 600]}
-        cellSize={2}
-        cellThickness={0.6}
-        cellColor="#ddd3c4"
-        sectionSize={10}
-        sectionThickness={0.9}
-        sectionColor="#d3c6b2"
-        fadeDistance={110}
-        fadeStrength={1.4}
-        infiniteGrid
-      />
 
       {connections.map((c) => (
         <Connection3D
@@ -423,13 +527,23 @@ function Scene({ ed, state, visible, handleRef }: { ed: EditorApi; state: BoardS
           f={f}
           selected={selection.has(f.id)}
           connectSource={ed.connectFrom === f.id}
+          showSpeech={settings.speech}
+          htmlReady={htmlReady}
           onDown={onEntityDown}
           onContext={onEntityContext}
         />
       ))}
 
       {notes.map((n) => (
-        <NoteNode key={n.id} n={n} selected={selection.has(n.id)} editing={ed.editingNote === n.id} onDown={onEntityDown} onContext={onEntityContext} />
+        <NoteNode
+          key={n.id}
+          n={n}
+          htmlReady={htmlReady}
+          selected={selection.has(n.id)}
+          editing={ed.editingNote === n.id}
+          onDown={onEntityDown}
+          onContext={onEntityContext}
+        />
       ))}
 
       {rotatable && <RotateRing f={rotatable} onDown={onRotateDown} />}
@@ -441,12 +555,16 @@ const FigureNode = memo(function FigureNode({
   f,
   selected,
   connectSource,
+  showSpeech,
+  htmlReady,
   onDown,
   onContext,
 }: {
   f: Figure
   selected: boolean
   connectSource: boolean
+  showSpeech: boolean
+  htmlReady: boolean
   onDown: (hit: BoardEntity, e: ThreeEvent<PointerEvent>) => void
   onContext: (hit: BoardEntity, e: ThreeEvent<MouseEvent>) => void
 }) {
@@ -484,11 +602,17 @@ const FigureNode = memo(function FigureNode({
           <meshBasicMaterial color={connectSource ? '#c0704f' : '#5b7a5a'} />
         </mesh>
       )}
-      {(f.label || f.locked) && (
-        <Html position={[0, h + 0.5, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="flex items-center gap-1 rounded-full bg-surface/85 px-2 py-0.5 text-[13px] font-semibold whitespace-nowrap text-ink shadow-soft">
-            {f.locked && <Icon name="lock" size={12} />}
-            {f.label}
+      {htmlReady && (f.label || f.locked || (showSpeech && f.speech)) && (
+        // Sprechblase und Beschriftung in einem Element: überlappen nie, egal wie weit gezoomt
+        <Html position={[0, h + 0.35, 0]} zIndexRange={[7, 0]} style={{ pointerEvents: 'none' }}>
+          <div className="flex -translate-x-1/2 -translate-y-full flex-col items-center gap-1.5">
+            {showSpeech && f.speech && <SpeechBubble f={f} />}
+            {(f.label || f.locked) && (
+              <div className="flex items-center gap-1 rounded-full bg-surface/85 px-2 py-0.5 text-[13px] font-semibold whitespace-nowrap text-ink shadow-soft">
+                {f.locked && <Icon name="lock" size={12} />}
+                {f.label}
+              </div>
+            )}
           </div>
         </Html>
       )}
@@ -498,12 +622,14 @@ const FigureNode = memo(function FigureNode({
 
 const NoteNode = memo(function NoteNode({
   n,
+  htmlReady,
   selected,
   editing,
   onDown,
   onContext,
 }: {
   n: Note
+  htmlReady: boolean
   selected: boolean
   editing: boolean
   onDown: (hit: BoardEntity, e: ThreeEvent<PointerEvent>) => void
@@ -533,15 +659,17 @@ const NoteNode = memo(function NoteNode({
           </mesh>
         </group>
       )}
-      <Html position={[0, 0.5, 0]} center zIndexRange={[6, 0]} style={{ pointerEvents: editing ? 'auto' : 'none' }}>
-        {editing ? (
-          <NoteEditor3D n={n} />
-        ) : (
-          <div className="max-w-56 rounded-lg bg-surface/80 px-2 py-1 text-xs break-words whitespace-pre-wrap text-ink shadow-soft">
-            {n.text || <span className="text-ink-3 italic">Notiz</span>}
-          </div>
-        )}
-      </Html>
+      {htmlReady && (
+        <Html position={[0, 0.5, 0]} center zIndexRange={[6, 0]} style={{ pointerEvents: editing ? 'auto' : 'none' }}>
+          {editing ? (
+            <NoteEditor3D n={n} />
+          ) : (
+            <div className="max-w-56 rounded-lg bg-surface/80 px-2 py-1 text-xs break-words whitespace-pre-wrap text-ink shadow-soft">
+              {n.text || <span className="text-ink-3 italic">Notiz</span>}
+            </div>
+          )}
+        </Html>
+      )}
     </group>
   )
 })

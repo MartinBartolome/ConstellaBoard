@@ -32,6 +32,10 @@ async function open3d(page: Page) {
   await waitFor3d(page)
 }
 
+// WebGL läuft in der Testumgebung in Software (SwiftShader): Texturen,
+// Landschaft und Schatten brauchen dort deutlich länger als auf echten Geräten.
+test.describe.configure({ timeout: 90_000 })
+
 test.describe('3D-Ansicht (Desktop)', () => {
   test.skip(({ isMobile }) => isMobile, 'Desktop-Bedienung')
 
@@ -69,6 +73,40 @@ test.describe('3D-Ansicht (Desktop)', () => {
     await expect(page.getByTestId('figure')).toHaveCount(2)
   })
 
+  test('Umgebung und Brett wählen, Satz einer Figur zeigen', async ({ page }) => {
+    await open3d(page)
+    await page.getByTestId('lib-frau').click()
+    await page.getByTestId('speech-input').fill('Ich habe immer an dich geglaubt.')
+    await page.getByTestId('speech-input').press('Enter')
+    await expect(page.getByTestId('speech-bubble')).toHaveText('«Ich habe immer an dich geglaubt.»')
+
+    await page.getByTestId('scenery-button').click()
+    await expect(page.getByTestId('scenery-panel')).toBeVisible()
+    await page.getByTestId('env-strand').click()
+    await page.getByTestId('board-filz').click()
+    await expect(page.getByTestId('board-3d')).toHaveAttribute('data-environment', 'strand')
+    await expect(page.getByTestId('board-3d')).toHaveAttribute('data-board', 'filz')
+    await page.getByTestId('toggle-speech').uncheck()
+    await expect(page.getByTestId('speech-bubble')).toHaveCount(0)
+    await page.getByTestId('toggle-speech').check()
+    await expect(page.getByTestId('speech-bubble')).toHaveCount(1)
+
+    // Persönliche Wahl bleibt nach dem Neuladen erhalten
+    await page.reload()
+    await expect(page.getByTestId('board-3d')).toHaveAttribute('data-environment', 'strand')
+    await expect(page.getByTestId('board-3d')).toHaveAttribute('data-board', 'filz')
+  })
+
+  test('Satz erscheint auch in der 2D-Ansicht', async ({ page }) => {
+    await open3d(page)
+    await page.getByTestId('lib-mann').click()
+    await page.getByTestId('speech-input').fill('Ich bin auch noch da.')
+    await page.getByTestId('speech-input').press('Enter')
+    await page.getByTestId('view-2d').click()
+    await expect(page.getByTestId('figure')).toHaveAttribute('data-speech', 'Ich bin auch noch da.')
+    await expect(page.getByTestId('board')).toContainText('«Ich bin auch noch da.»')
+  })
+
   test('Ansicht bleibt nach dem Neuladen erhalten', async ({ page }) => {
     await open3d(page)
     await page.reload()
@@ -104,7 +142,7 @@ test.describe('3D-Ansicht (Touch)', () => {
 /** Wartet, bis die 3D-Szene bereit ist (Test-Schnittstelle gesetzt). */
 async function waitFor3d(page: Page) {
   await expect
-    .poll(() => page.getByTestId('board-3d').evaluate((el) => !!(el as unknown as { board3d?: unknown }).board3d))
+    .poll(() => page.getByTestId('board-3d').evaluate((el) => !!(el as unknown as { board3d?: unknown }).board3d), { timeout: 20_000 })
     .toBe(true)
 }
 

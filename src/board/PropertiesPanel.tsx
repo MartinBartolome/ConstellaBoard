@@ -4,6 +4,8 @@ import { getTemplate, PALETTE } from '../domain/library'
 import type { BoardEntity, Connection, Figure, LineDirection, LineStyle, Note } from '../domain/types'
 import { SCALE_MAX, SCALE_MIN, clampScale } from '../domain/commands'
 import { Icon } from '../components/Icon'
+import { MAX_SPEECH } from '../domain/validate'
+import { speak, useCanSpeak } from '../lib/speak'
 import { useBoardState, useEditor } from './editor'
 import type { Actions } from './actions'
 
@@ -118,6 +120,7 @@ function FigureProps({ f, disabled }: { f: Figure; disabled: boolean }) {
         placeholder="z. B. Vater, Ich, Firma …"
         focusToken={ed.labelFocusToken}
       />
+      <SpeechField key={`speech-${f.id}`} f={f} disabled={disabled} onCommit={(speech) => patch({ speech })} />
       <div>
         <span className="field-label">Farbe</span>
         <ColorPicker value={f.color} onChange={(color) => patch({ color })} disabled={disabled} />
@@ -382,5 +385,62 @@ function Swatch({ color, name, active, onClick, disabled }: { color: string; nam
       className={`h-9 w-9 rounded-full border transition disabled:opacity-40 ${active ? 'ring-2 ring-moss ring-offset-2 ring-offset-surface' : 'border-black/10 hover:scale-105'}`}
       style={{ background: color }}
     />
+  )
+}
+
+/** Einprägsamer Satz, den die Figur „spricht" (Sprechblase in 3D, Zeile in 2D). */
+function SpeechField({ f, disabled, onCommit }: { f: Figure; disabled: boolean; onCommit: (v: string) => void }) {
+  const value = f.speech ?? ''
+  const audible = useCanSpeak()
+  const [v, setV] = useState(value)
+  useEffect(() => setV(value), [value])
+  const commit = () => {
+    const t = v.replace(/\s+/g, ' ').trim().slice(0, MAX_SPEECH)
+    if (t !== value) onCommit(t)
+    else if (t !== v) setV(t)
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <label className="field-label" htmlFor="speech-input">
+          Satz der Figur
+        </label>
+        {audible && (
+          <button
+            type="button"
+            className="-mt-1.5 mb-0.5 flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-moss hover:bg-moss-light disabled:opacity-40"
+            disabled={!v.trim()}
+            onClick={() => speak(v, getTemplate(f.type))}
+            title="Satz vorlesen"
+          >
+            <Icon name="speaker" size={15} /> Vorlesen
+          </button>
+        )}
+      </div>
+      <textarea
+        id="speech-input"
+        data-testid="speech-input"
+        className="input min-h-16 resize-none font-serif italic"
+        rows={2}
+        value={v}
+        maxLength={MAX_SPEECH}
+        disabled={disabled}
+        placeholder="z. B. «Ich bin stolz auf dich.»"
+        onChange={(e) => setV(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            commit()
+            ;(e.target as HTMLTextAreaElement).blur()
+          }
+          if (e.key === 'Escape') {
+            setV(value)
+            ;(e.target as HTMLTextAreaElement).blur()
+          }
+        }}
+      />
+    </div>
   )
 }

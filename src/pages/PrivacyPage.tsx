@@ -24,7 +24,7 @@ export function PrivacyPage() {
           <Section title="Welche Daten entstehen während einer Sitzung?">
             <ul className="list-disc space-y-1.5 pl-5">
               <li>Eine zufällige Sitzungs-ID sowie Erstellungs-, Aktivitäts- und Ablaufzeitpunkt.</li>
-              <li>Der Brettzustand: Figuren, Positionen, Farben, Beschriftungen, Verbindungen und Notizen.</li>
+              <li>Der Brettzustand: Figuren, Positionen, Farben, Beschriftungen, Sätze der Figuren, Verbindungen und Notizen.</li>
               <li>Pro teilnehmender Person: eine zufällige technische Kennung, Rolle, Berechtigungen und ein frei wählbarer Anzeigename (optional, z. B. «Gast»).</li>
               <li>Zugangstoken werden ausschliesslich als kryptografischer Hash (SHA-256) gespeichert, ein optionaler Zugangscode als gesalzener PBKDF2-Hash.</li>
               <li>Zur Abwehr von Missbrauch (Rate-Limiting) wird ein gesalzener Hash der IP-Adresse für höchstens eine Stunde gespeichert.</li>
@@ -36,6 +36,10 @@ export function PrivacyPage() {
               <li>Keine Konten, E-Mail-Adressen oder Klientennamen.</li>
               <li>Keine Gesprächsprotokolle, Audio- oder Videoaufnahmen.</li>
               <li>Keine Tracking-, Analyse- oder Werbedienste, keine Cookies zu Werbezwecken, keine externen Schriften.</li>
+              <li>
+                Die gewählte 3D-Umgebung und das Brett bleiben nur in deinem Browser. Das Vorlesen von Sätzen nutzt ausschliesslich Stimmen, die
+                auf deinem Gerät installiert sind – der Text verlässt das Gerät dafür nicht.
+              </li>
             </ul>
           </Section>
 

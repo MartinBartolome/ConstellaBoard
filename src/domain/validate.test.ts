@@ -22,6 +22,20 @@ describe('Validierung', () => {
     expect(isValidEntity({ ...f, extra: 1 })).toBe(false)
     expect(isValidEntity({ ...f, color: 'red; background:url(x)' })).toBe(false)
     expect(isValidEntity({ ...f, id: '../../etc' })).toBe(false)
+    expect(isValidEntity({ ...f, speech: 'a'.repeat(201) })).toBe(false)
+    expect(isValidEntity({ ...f, speech: 3 })).toBe(false)
+    const { label: _l, ...missing } = f
+    void _l
+    expect(isValidEntity(missing)).toBe(false)
+  })
+
+  it('akzeptiert Figuren mit und ohne Satz', () => {
+    const f = newFigure(emptyBoard(), 'frau', 1, 2)
+    expect('speech' in f).toBe(false)
+    expect(isValidEntity(f)).toBe(true)
+    expect(isValidEntity({ ...f, speech: 'Ich bin auch noch da.' })).toBe(true)
+    expect(validateOps([{ op: 'patch', id: f.id, fields: { speech: 'Du gehörst dazu.' }, rev }], () => 'figure')).not.toBeNull()
+    expect(validateOps([{ op: 'patch', id: f.id, fields: { speech: 'x'.repeat(300) }, rev }], () => 'figure')).toBeNull()
   })
 
   it('prüft Operationen', () => {

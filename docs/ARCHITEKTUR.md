@@ -48,3 +48,13 @@ Anwesenheit (Presence), Cursor (max. 10/s) und Steuernachrichten (`ended`, `perm
 | PDF-/Bildexport | Brett ist reines SVG → direkt serialisierbar |
 | Abrechnung/Abos | Sitzungserstellung läuft zentral über `create-session` |
 | Datenmodell-Migrationen | `BoardState.schema` |
+
+## 3D-Ansicht
+
+`src/board3d/` – React Three Fiber, nachgeladen. Arbeitet auf denselben Daten wie 2D.
+
+- `Figure3D.tsx`, `geometry3d.ts`: gedrechselte Figuren (Profil um die Hochachse gedreht, Querschnitt rund/eckig/sechseckig), PBR-Material mit Ahorn-Maserung, Geometrien werden geteilt.
+- `Scenery3D.tsx`: Systembrett (Holz oder Stoff im Rahmen) und Umgebung (bodenprojiziertes Panorama, HDR-Umgebungslicht, Sonne mit Schatten).
+- `scenery.ts`: Katalog der Bretter und Umgebungen, persönliche Einstellung im `localStorage` (wird nicht synchronisiert).
+- Assets in `public/3d/` (Poly Haven, CC0, siehe `public/3d/LIZENZEN.md`). Handys laden 2k-Panoramen und kleinere Schattenkarten.
+- Der Satz einer Figur (`speech`) ist ein normales, optionales Figurenfeld und wird wie alle Felder synchronisiert und serverseitig validiert (max. 200 Zeichen).

@@ -21,6 +21,7 @@ export const FigureView = memo(function FigureView({
       data-testid="figure"
       data-type={f.type}
       data-label={f.label}
+      data-speech={f.speech || undefined}
       transform={`translate(${f.x} ${f.y})`}
       opacity={f.visible ? 1 : 0.35}
       style={{ cursor: f.locked ? 'not-allowed' : 'move' }}
@@ -62,6 +63,26 @@ export const FigureView = memo(function FigureView({
           {f.label}
         </text>
       )}
+      {f.speech && (
+        <text
+          y={r * 1.35 + (f.label ? 34 : 16)}
+          textAnchor="middle"
+          fontSize={12.5}
+          fontStyle="italic"
+          fontFamily="var(--font-serif)"
+          fill="#5c554c"
+          stroke="#faf7f1"
+          strokeWidth={4}
+          paintOrder="stroke"
+          style={{ pointerEvents: 'none' }}
+        >
+          «{shorten(f.speech, 42)}»
+        </text>
+      )}
     </g>
   )
 })
+
+function shorten(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s
+}

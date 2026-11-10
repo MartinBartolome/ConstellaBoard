@@ -13,6 +13,8 @@ Digitales Systembrett für Familien- und Systemaufstellungen, systemisches Coach
 |---|---|
 | Brett | Grosse SVG-Arbeitsfläche, Zoom (Rad, Trackpad, Zwei-Finger), Verschieben, Auswahlrechteck, Mehrfachauswahl, Ziehen, Drehen, Skalieren, Beschriften, Duplizieren, Löschen, Sperren, Ausblenden, Gruppieren, Ebenen, Textnotizen, Kontextmenü (Rechtsklick / langes Drücken), Tastaturkürzel |
 | Figuren | 34 Figuren in 9 Kategorien (Mann, Frau, Kind, Baby, Neutrale Person, Tier, Familie, Symbol, Abstrakt), Blickrichtung, 12 Naturfarben + freie Farbe, Drag-and-drop auch per Touch |
+| 3D-Ansicht | Umschaltbar: gedrechselte Holzfiguren mit Maserung (PBR), echtes Systembrett (Ahorn, Eiche, Kirschbaum, Nussbaum, Filz, Leinen), sieben ruhige Umgebungen (Alpenwiese, Sommerwiese, Waldbach, See, Strand, Abendlicht, Raum) – frei wählbar pro Person |
+| Sätze | Pro Figur ein einprägsamer Satz: Sprechblase in 3D, Zeile in 2D, auf Wunsch vorgelesen (Sprachausgabe des Geräts) |
 | Beziehungen | Normal, Eng, Konflikt, Distanz, Emotional, Einseitig, Frei – Farbe, Stärke, Linienart, Richtung, Beschriftung; bleiben an Figuren verankert |
 | Verlauf | Rückgängig/Wiederherstellen (eigene Schritte, auch in Live-Sitzungen) |
 | Sitzungen | Coach- und Teilnehmer-Links, optionaler Zugangscode, Anzeigenamen optional, bis 20 Personen |

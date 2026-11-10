@@ -4,6 +4,7 @@ import { useThree } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import { METER, panoramaDirection, panoramaYaw, type BoardStyle, type EnvironmentStyle, type TableSet } from './scenery'
 import { useModel } from './models'
+import { Outdoor, Room, type Detail } from './Surroundings3D'
 import { tiled, useTextureAsync } from './textures'
 
 /** Dicke des Bretts in Welt-Einheiten; die Oberseite liegt auf y = 0. */
@@ -176,6 +177,15 @@ export function chairPlaces(set: TableSet, w: number, d: number): Placed[] {
   return out
 }
 
+/** Grösse der Tischplatte (Welt-Einheiten): wächst mit dem Brett. */
+export function tableSize(set: TableSet, rect: BoardRect) {
+  const topW = set.top[0] * METER
+  const topD = set.top[1] * METER
+  const sx = Math.max(1, (rect.w + 5) / topW)
+  const sz = Math.max(1, (rect.d + 5) / topD)
+  return { sx, sz, w: topW * sx, d: topD * sz }
+}
+
 /**
  * Tisch (und Stühle) passend zur Umgebung. Wird das Brett grösser als die
  * Tischplatte, wächst der Tisch in der Fläche mit.
@@ -183,12 +193,7 @@ export function chairPlaces(set: TableSet, w: number, d: number): Placed[] {
 export const Furniture = memo(function Furniture({ set, rect, shadow }: { set: TableSet; rect: BoardRect; shadow: number }) {
   const table = useModel(set.table)
   const chair = useModel(set.chair)
-  const topW = set.top[0] * METER
-  const topD = set.top[1] * METER
-  const sx = Math.max(1, (rect.w + 5) / topW)
-  const sz = Math.max(1, (rect.d + 5) / topD)
-  const w = topW * sx
-  const d = topD * sz
+  const { sx, sz, w, d } = tableSize(set, rect)
   const y = floorY(set)
 
   const tableObj = useMemo(() => table?.clone() ?? null, [table])
@@ -227,11 +232,14 @@ export const Furniture = memo(function Furniture({ set, rect, shadow }: { set: T
  * stehen auf dessen Boden, dazu
  * Umgebungslicht aus einem kleinen HDR und eine Sonne mit weichen Schatten.
  */
-export function Environment3D({ env, rect, hiRes, shadowSize }: { env: EnvironmentStyle; rect: BoardRect; hiRes: boolean; shadowSize: number }) {
+export function Environment3D({ env, rect, hiRes, shadowSize, detail }: { env: EnvironmentStyle; rect: BoardRect; hiRes: boolean; shadowSize: number; detail: Detail }) {
   const { scene, invalidate } = useThree()
   const light = useTextureAsync(`env/${env.file}_light.hdr`, 'hdr')
-  const backdrop = useTextureAsync(env.backdrop ? `env/${env.file}_${hiRes ? '4k' : '2k'}.jpg` : null)
+  // Räume: Aussicht durch die Fenster; draussen: das Panorama selbst
+  const view = env.setting?.kind === 'room' ? env.setting.view : { file: env.file, viewU: env.viewU }
+  const backdrop = useTextureAsync(env.backdrop ? `env/${view.file}_${hiRes ? '4k' : '2k'}.jpg` : null)
   const yaw = panoramaYaw(env)
+  const viewYaw = panoramaYaw(view)
 
   useEffect(() => {
     scene.environment = light
@@ -257,18 +265,19 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
     if (!env.backdrop || !backdrop) return
     backdrop.mapping = THREE.EquirectangularReflectionMapping
     scene.background = backdrop
-    scene.backgroundRotation.set(0, yaw, 0)
+    scene.backgroundRotation.set(0, viewYaw, 0)
     invalidate()
     return () => {
       scene.background = new THREE.Color(env.color)
     }
-  }, [scene, backdrop, env.backdrop, env.color, yaw, invalidate])
+  }, [scene, backdrop, env.backdrop, env.color, viewYaw, invalidate])
 
   const sunDir = panoramaDirection(env.sun.u, env.sun.elevation, yaw)
   const dist = 90
   // Brett und Tischplatte darum herum (Stühle und Boden: weiche Kontaktschatten)
   const half = Math.max(rect.w, rect.d) / 2 + 16
   const floor = floorY(env.furniture)
+  const ts = tableSize(env.furniture, rect)
 
   return (
     <>
@@ -279,6 +288,8 @@ export function Environment3D({ env, rect, hiRes, shadowSize }: { env: Environme
         </mesh>
       )}
       <Furniture set={env.furniture} rect={rect} shadow={env.backdrop ? 0.7 : 0.45} />
+      {env.setting?.kind === 'room' && <Room setting={env.setting} origin={[rect.cx, floor, rect.cz]} tableSize={[ts.w, ts.d]} />}
+      {env.setting?.kind === 'outdoor' && <Outdoor setting={env.setting} origin={[rect.cx, floor, rect.cz]} tableSize={[ts.w, ts.d]} detail={detail} />}
       <hemisphereLight args={['#fffaf0', '#c9b79c', env.backdrop ? 0.2 : 0.35]} />
       <directionalLight
         position={[rect.cx + sunDir[0] * dist, sunDir[1] * dist, rect.cz + sunDir[2] * dist]}

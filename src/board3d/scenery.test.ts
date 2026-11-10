@@ -100,3 +100,21 @@ describe('Tisch und Stühle', () => {
     expect(chairPlaces(TABLES.picknick, 100, 40)).toEqual([])
   })
 })
+
+describe('Räume und Landschaften', () => {
+  it('jede Szene hat ihre Texturen und Modelle', () => {
+    for (const env of ENVIRONMENTS) {
+      const s = env.setting
+      if (!s) continue
+      if (s.kind === 'room') {
+        expect(existsSync(`public/3d/moebel/raum-${s.theme}.glb`)).toBe(true)
+        for (const t of [s.floor, s.wall]) expect(existsSync(`public/3d/tex/raum/${t}_color.jpg`)).toBe(true)
+        expect(existsSync(`public/3d/env/${s.view.file}_2k.jpg`)).toBe(true)
+      } else {
+        expect(existsSync(`public/3d/tex/boden/${s.ground}_color.jpg`)).toBe(true)
+        expect(existsSync('public/3d/moebel/natur.glb')).toBe(true)
+      }
+      expect(existsSync(`public/3d/env/${env.file}_light.hdr`)).toBe(true)
+    }
+  })
+})

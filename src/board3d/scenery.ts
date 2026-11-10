@@ -68,6 +68,36 @@ export const TABLES = {
   salon: { table: 'esstisch', top: [2.04, 1.15], height: 0.786, chair: 'sessel-gruen', chairWidth: 0.68 },
 } satisfies Record<string, TableSet>
 
+/** Ein gebauter Raum: Boden, Wände mit Fenstern, Decke, Teppich und Einrichtung. */
+export interface RoomSetting {
+  kind: 'room'
+  /** Einrichtung (Datei unter public/3d/moebel, Platzierung in Surroundings3D) */
+  theme: 'wohnzimmer' | 'atelier' | 'salon'
+  /** Bodentextur unter public/3d/tex/raum */
+  floor: string
+  floorTile: number
+  /** Wandtextur und Wandfarbe */
+  wall: string
+  wallTint: string
+  /** Teppich unter dem Tisch (Tönung), ohne: kein Teppich */
+  rug?: string
+  /** Aussicht durch die Fenster (Panorama unter public/3d/env) */
+  view: { file: string; viewU: number }
+}
+
+/** Draussen: echter Boden um den Tisch, der in das Panorama übergeht. */
+export interface OutdoorSetting {
+  kind: 'outdoor'
+  /** Bodentextur unter public/3d/tex/boden */
+  ground: string
+  /** Tönung, damit der Boden zur Farbe des Panoramas passt */
+  tint: string
+  /** Pflanzen und Steine */
+  props: 'wiese' | 'wald' | 'ufer' | 'strand'
+  /** Grashalme (0 = keine) */
+  grass: number
+}
+
 export interface EnvironmentStyle {
   id: string
   name: string
@@ -75,10 +105,12 @@ export interface EnvironmentStyle {
   mood: string
   /** Dateiname-Präfix unter public/3d/env; null = schlichter Hintergrund */
   file: string
-  /** Hintergrundbild (sonst einfarbig) */
+  /** Panorama als Hintergrund (sonst einfarbig) */
   backdrop: boolean
   /** Tisch und Stühle, passend zur Umgebung */
   furniture: TableSet
+  /** Gebauter Raum oder Boden draussen; ohne: schlichte Fläche */
+  setting?: RoomSetting | OutdoorSetting
   /** Horizontale Bildstelle (0–1), die hinter dem Brett liegen soll */
   viewU: number
   /** Sonnenposition im Panorama (u, Höhe in Grad) für den Schattenwurf */
@@ -98,9 +130,10 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'atelier',
     backdrop: true,
     furniture: TABLES.hell,
+    setting: { kind: 'room', theme: 'atelier', floor: 'dielen-hell', floorTile: 1.6, wall: 'putz-beige', wallTint: '#fdfbf6', view: { file: 'alpenwiese', viewU: 0.47 } },
     viewU: 0.55,
-    sun: { u: 0.73, elevation: 34, intensity: 1.3, color: '#fff6ea' },
-    envIntensity: 1.0,
+    sun: { u: 0.55, elevation: 38, intensity: 1.3, color: '#fff6ea' },
+    envIntensity: 1.25,
     color: '#e9e0d3',
     swatch: '',
   },
@@ -111,9 +144,10 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'wohnzimmer',
     backdrop: true,
     furniture: TABLES.esstisch,
+    setting: { kind: 'room', theme: 'wohnzimmer', floor: 'dielen', floorTile: 2, wall: 'putz', wallTint: '#f7f0e4', rug: '#d9cbb4', view: { file: 'sommerwiese', viewU: 0.78 } },
     viewU: 0.6,
-    sun: { u: 0.63, elevation: 32, intensity: 1.2, color: '#fff3e2' },
-    envIntensity: 0.95,
+    sun: { u: 0.6, elevation: 38, intensity: 1.2, color: '#fff3e2' },
+    envIntensity: 1.25,
     color: '#e6dccd',
     swatch: '',
   },
@@ -124,9 +158,10 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'salon',
     backdrop: true,
     furniture: TABLES.salon,
+    setting: { kind: 'room', theme: 'salon', floor: 'parkett', floorTile: 1.5, wall: 'putz-beige', wallTint: '#e9dcc2', rug: '#b9a07a', view: { file: 'abendfeld', viewU: 0.6 } },
     viewU: 0.58,
-    sun: { u: 0.58, elevation: 30, intensity: 1.1, color: '#fff1dc' },
-    envIntensity: 1.0,
+    sun: { u: 0.58, elevation: 38, intensity: 1.1, color: '#fff1dc' },
+    envIntensity: 1.25,
     color: '#cdb994',
     swatch: '',
   },
@@ -150,6 +185,7 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'alpenwiese',
     backdrop: true,
     furniture: TABLES.picknick,
+    setting: { kind: 'outdoor', ground: 'gras', tint: '#cfe0a8', props: 'wiese', grass: 1 },
     viewU: 0.47,
     sun: { u: 0.6, elevation: 42, intensity: 2.4, color: '#fff3dc' },
     envIntensity: 0.9,
@@ -163,6 +199,7 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'sommerwiese',
     backdrop: true,
     furniture: TABLES.picknick,
+    setting: { kind: 'outdoor', ground: 'gras', tint: '#d4e2aa', props: 'wiese', grass: 1 },
     viewU: 0.78,
     sun: { u: 0.6, elevation: 27, intensity: 2.4, color: '#fff1d6' },
     envIntensity: 0.9,
@@ -176,6 +213,7 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'waldbach',
     backdrop: true,
     furniture: TABLES.picknick,
+    setting: { kind: 'outdoor', ground: 'waldboden', tint: '#dcdac8', props: 'wald', grass: 0.3 },
     viewU: 0.5,
     sun: { u: 0.78, elevation: 55, intensity: 1.1, color: '#f1f6e4' },
     envIntensity: 1.1,
@@ -189,6 +227,7 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'seeufer',
     backdrop: true,
     furniture: TABLES.picknick,
+    setting: { kind: 'outdoor', ground: 'ufer', tint: '#d8c8b0', props: 'ufer', grass: 0 },
     viewU: 0.5,
     sun: { u: 0.6, elevation: 32, intensity: 2.3, color: '#fff4e0' },
     envIntensity: 0.9,
@@ -202,6 +241,7 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'strand',
     backdrop: true,
     furniture: TABLES.picknick,
+    setting: { kind: 'outdoor', ground: 'sand', tint: '#f0e2c8', props: 'strand', grass: 0 },
     viewU: 0.62,
     sun: { u: 0.64, elevation: 32, intensity: 2.3, color: '#fff2da' },
     envIntensity: 0.9,
@@ -215,6 +255,7 @@ export const ENVIRONMENTS: EnvironmentStyle[] = [
     file: 'abendfeld',
     backdrop: true,
     furniture: TABLES.picknick,
+    setting: { kind: 'outdoor', ground: 'gras', tint: '#ece4d0', props: 'wiese', grass: 0.8 },
     viewU: 0.6,
     sun: { u: 0.6, elevation: 22, intensity: 1.3, color: '#ffd9b8' },
     envIntensity: 1.2,
@@ -251,7 +292,7 @@ export function panoramaDirection(u: number, elevationDeg: number, yaw: number):
  * Drehung des Panoramas um die Hochachse, damit die Bildstelle viewU hinter
  * dem Brett liegt (Kamera blickt anfangs in Richtung −z, das entspricht u = 0.25).
  */
-export function panoramaYaw(env: EnvironmentStyle): number {
+export function panoramaYaw(env: { viewU: number }): number {
   return (env.viewU - 0.25) * Math.PI * 2
 }
 

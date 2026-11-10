@@ -60,6 +60,8 @@ function detectLowPower(): boolean {
 /** WebGL ohne Grafikkarte (z. B. SwiftShader, llvmpipe): sparsam rendern. */
 export function softwareRendering(): boolean {
   if (typeof document === 'undefined') return false
+  // ?hq: volle Qualität erzwingen (Screenshots, Vergleiche)
+  if (new URLSearchParams(window.location.search).has('hq')) return false
   try {
     const gl = document.createElement('canvas').getContext('webgl')
     if (!gl) return true
@@ -465,14 +467,17 @@ function Scene({
         makeDefault
         enableDamping={false}
         minDistance={3}
-        maxDistance={160}
+        maxDistance={env.setting?.kind === 'room' ? 120 : 160}
+        // Im Raum vorne bleiben: nicht durch die Seitenwände hinausdrehen
+        minAzimuthAngle={env.setting?.kind === 'room' ? -1.2 : -Infinity}
+        maxAzimuthAngle={env.setting?.kind === 'room' ? 1.2 : Infinity}
         maxPolarAngle={1.45}
         screenSpacePanning={false}
         mouseButtons={{ LEFT: hand ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
         touches={{ ONE: hand ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
 
-      <Environment3D env={env} rect={rect} hiRes={!lowPower} shadowSize={software ? 512 : lowPower ? 1024 : 2048} />
+      <Environment3D env={env} rect={rect} hiRes={!lowPower} shadowSize={software ? 512 : lowPower ? 1024 : 2048} detail={software ? 'minimal' : lowPower ? 'lite' : 'full'} />
       <Systembrett rect={rect} style={boardStyle} />
 
       {/* Unsichtbare Ebene auf Brett-Höhe: Klicks, Abwählen, Cursor – auch neben dem Brett */}
